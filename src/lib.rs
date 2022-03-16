@@ -121,6 +121,7 @@ impl FontKey {
 #[derive(Clone)]
 struct Name {
     pub name: String,
+    #[allow(unused)]
     pub language_id: u16,
 }
 
@@ -138,7 +139,7 @@ impl Font {
 
     fn from_buffer(mut buffer: &[u8]) -> Result<Self, Error> {
         use ttf_parser::name_id;
-        let ty = infer::get(&buffer).ok_or_else(|| Error::UnrecognizedBuffer)?;
+        let ty = infer::get(buffer).ok_or(Error::UnrecognizedBuffer)?;
         let buffer = match (ty.mime_type(), ty.extension()) {
             #[cfg(feature = "woff2")]
             ("application/woff", "woff2") => {
@@ -154,7 +155,7 @@ impl Font {
                 otf_buf.into_inner()
             }
             ("application/font-sfnt", _) => buffer.to_vec(),
-            a @ _ => return Err(Error::UnsupportedMIME(a.0)),
+            a => return Err(Error::UnsupportedMIME(a.0)),
         };
         let face = StaticFaceTryBuilder {
             buffer,
@@ -297,6 +298,7 @@ impl FontKit {
 
 impl FontKit {
     /// Create a font registry
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         // #[cfg(wasm)]
         // wasm_logger::init(wasm_logger::Config::new(log::Level::Info));
@@ -329,7 +331,7 @@ impl FontKit {
                 .extension()
                 .and_then(|s| s.to_str())
                 .map(|s| s.to_lowercase());
-            let ext = ext.as_ref().map(|s| s.as_str());
+            let ext = ext.as_deref();
             let ext = match ext {
                 Some(e) => e,
                 None => continue,
@@ -407,7 +409,7 @@ impl FontKit {
                 Filter::Stretch(st) => s.retain(|key, _| key.stretch == st),
             };
             match s.len() {
-                1 => return s.values().next().map(|f| *f),
+                1 => return s.values().next().copied(),
                 0 => {}
                 _ => search_results = s,
             }

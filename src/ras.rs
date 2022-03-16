@@ -23,9 +23,7 @@ impl Font {
             units,
             ..
         } = self.measure_char(c)?;
-        let outline = f
-            .outline_glyph(glyph_id, &mut builder)
-            .unwrap_or_else(|| bbox);
+        let outline = f.outline_glyph(glyph_id, &mut builder).unwrap_or(bbox);
         builder.finish();
         let glyph = Glyph {
             units: units as u16,

@@ -8,7 +8,7 @@ const BROTLI_DECODER_BUFFER_SIZE: usize = 4096;
 const XFORM_TRANSFORM: u32 = 256;
 
 const fn tag(chars: &[u8; 4]) -> u32 {
-    ((chars[3] as u32) << 0)
+    (chars[3] as u32)
         | ((chars[2] as u32) << 8)
         | ((chars[1] as u32) << 16)
         | ((chars[0] as u32) << 24)
@@ -97,7 +97,7 @@ const fn previous_power_of_two(mut x: u16) -> u16 {
     x |= x >> 2;
     x |= x >> 4;
     x |= x >> 8;
-    x - x >> 1
+    x - (x >> 1)
 }
 
 fn read_u32_base_128<R>(reader: &mut R) -> Result<u32, Error>

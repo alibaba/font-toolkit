@@ -63,7 +63,7 @@ impl Font {
             let m = self
                 .measure_char(char_code)
                 .or_else(|| fallback_font?.measure_char(char_code))
-                .ok_or_else(|| Error::GlyphNotFound { c: char_code })?;
+                .ok_or(Error::GlyphNotFound { c: char_code })?;
             let kerning = self.kerning(prev, char_code).unwrap_or(0);
             x_a += kerning as i32;
             prev = char_code;
@@ -104,7 +104,7 @@ impl Font {
             bbox,
             lsb: f.glyph_hor_side_bearing(glyph_id).unwrap_or(0),
             units,
-            height: height,
+            height,
         })
     }
 
@@ -135,10 +135,12 @@ impl Font {
 #[cfg_attr(wasm, wasm_bindgen)]
 #[derive(Debug, Clone)]
 pub struct TextMetrics {
+    #[allow(unused)]
     positions: Vec<PositionedChar>,
     pub content_height: i16,
     pub ascender: i16,
     pub line_gap: i16,
+    #[allow(unused)]
     units: u16,
 }
 

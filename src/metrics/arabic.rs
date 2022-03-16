@@ -84,25 +84,16 @@ fn is_in_behind_set(target: &u32) -> bool {
 
 #[inline]
 fn need_ligatures(target: u32) -> bool {
-    if target >= 0x621 && target <= 0x64A {
-        true
-    } else {
-        false
-    }
+    (0x62..=0x64A).contains(&target)
 }
 
 /// we think zero width char will not influence ligatures
 #[inline]
 fn zero_width_char(target: u32) -> bool {
-    if target >= 0x610 && target <= 0x61A
-        || target >= 0x64B && target <= 0x65F
+    (0x610..=0x61A).contains(&target)
+        || (0x64B..=0x65F).contains(&target)
         || target >= 0x670
-        || target >= 0x6D6 && target <= 0x6ED
-    {
-        true
-    } else {
-        false
-    }
+        || (0x6D6..=0x6ED).contains(&target)
 }
 
 fn do_ligatures(curr: u32, front: Option<char>, behind: Option<char>) -> u32 {
@@ -110,7 +101,7 @@ fn do_ligatures(curr: u32, front: Option<char>, behind: Option<char>) -> u32 {
     let behind = behind.map(|x| x as u32).unwrap_or(0);
 
     let curr_index = (curr - 0x621) as usize;
-    let curr = if is_in_front_set(&front) && is_in_behind_set(&behind) {
+    if is_in_front_set(&front) && is_in_behind_set(&behind) {
         // medi
         ARABIC_POSITION[curr_index][MEDI]
     } else if is_in_front_set(&front) && !is_in_behind_set(&behind) {
@@ -119,9 +110,7 @@ fn do_ligatures(curr: u32, front: Option<char>, behind: Option<char>) -> u32 {
         ARABIC_POSITION[curr_index][INIT]
     } else {
         ARABIC_POSITION[curr_index][ISO]
-    };
-
-    curr
+    }
 }
 
 #[inline]
@@ -135,7 +124,7 @@ fn handle_special_char(front: Option<char>, behind: Option<char>) -> u32 {
     let front = front.map(|x| x as u32).unwrap_or(0);
     let behind = behind.map(|x| x as u32).unwrap_or(0);
 
-    let curr = match behind {
+    match behind {
         0x622 => {
             if is_in_front_set(&front) {
                 ARABIC_SPECIAL[0][1]
@@ -165,8 +154,7 @@ fn handle_special_char(front: Option<char>, behind: Option<char>) -> u32 {
             }
         }
         _ => 0x644,
-    };
-    curr
+    }
 }
 
 pub fn fix_arabic_ligatures_char(text: &str) -> String {
@@ -179,7 +167,7 @@ pub fn fix_arabic_ligatures_char(text: &str) -> String {
     let mut curr = behind;
 
     while curr.is_some() {
-        if vowel.len() > 0 {
+        if !vowel.is_empty() {
             res.push_str(&vowel);
             vowel = String::new();
         }
@@ -224,7 +212,7 @@ pub fn fix_arabic_ligatures_char(text: &str) -> String {
         curr = behind;
     }
 
-    if vowel.len() > 0 {
+    if !vowel.is_empty() {
         res.push_str(&vowel);
     }
     res

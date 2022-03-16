@@ -65,7 +65,7 @@ where
         x |= x >> 2;
         x |= x >> 4;
         x |= x >> 8;
-        x - x >> 1
+        x - (x >> 1)
     }
 
     fn tell<S>(stream: &mut S) -> Result<u64, Error>
