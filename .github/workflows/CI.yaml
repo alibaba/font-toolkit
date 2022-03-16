@@ -1,0 +1,73 @@
+name: CI
+
+env:
+  DEBUG: napi:*
+  APP_NAME: font-toolkit
+  MACOSX_DEPLOYMENT_TARGET: '10.13'
+
+'on':
+  push:
+    branches:
+      - main
+    tags-ignore:
+      - '**'
+    # 忽略以下文件
+    paths-ignore:
+      - '**/*.md'
+      - 'LICENSE'
+      - '**/*.gitignore'
+      - '.editorconfig'
+      - 'docs/**'
+      - 'example/*.png'
+
+  pull_request: null
+
+jobs:
+  build-wasm:
+    name: Build and test wasm - node@${{ matrix.node }}(Linux-x64-gnu)
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['12', '14', '16']
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node }}
+          check-latest: true
+
+      - name: Install
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          override: true
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v1
+        with:
+          key: ${{ matrix.settings.target }}-node@14-cargo-cache
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.3.0
+        with:
+          version: 'latest'
+
+      - name: Install dependencies
+        run: yarn install --ignore-scripts --frozen-lockfile --registry https://registry.npmjs.org --network-timeout 300000
+
+      - name: Build wasm
+        run: yarn build
+
+      - name: Test wasm
+        run: yarn test
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: wasm32
+          path: wasm-node/*.wasm
+
