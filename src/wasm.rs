@@ -26,7 +26,9 @@ impl FontWasm {
     pub fn glyph_path(&self, c: char) -> Option<GlyphPath> {
         let font = self.font();
         let (_, mut outline) = font.outline(c)?;
+        let height = font.ascender() as f32 - font.descender() as f32;
         outline.transform(&Transform2F::from_scale(Vector2F::new(1.0, -1.0)));
+        outline.transform(&Transform2F::from_translation(Vector2F::new(0.0, height)));
         Some(GlyphPath { outline })
     }
 
@@ -53,10 +55,18 @@ pub struct GlyphPath {
 
 #[wasm_bindgen]
 impl GlyphPath {
+    /// Scale the path
     pub fn scale(&mut self, scale: f32) {
         self.outline.transform(&Transform2F::from_scale(scale));
     }
 
+    /// Translate the path
+    pub fn translate(&mut self, x: f32, y: f32) {
+        self.outline
+            .transform(&Transform2F::from_translation(Vector2F::new(x, y)));
+    }
+
+    /// Output the path following SVG <path> `d` style
     pub fn to_string(&mut self) -> String {
         format!("{:?}", self.outline)
     }
