@@ -23,7 +23,7 @@ impl FontWasm {
 
     /// Output the glyph's path in SVG path `d` style
     #[cfg(feature = "ras")]
-    pub fn glpyh_path(&self, c: char) -> Option<GlyphPath> {
+    pub fn glyph_path(&self, c: char) -> Option<GlyphPath> {
         let font = self.font();
         let (_, mut outline) = font.outline(c)?;
         outline.transform(&Transform2F::from_scale(Vector2F::new(1.0, -1.0)));

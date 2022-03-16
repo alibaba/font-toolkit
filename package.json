@@ -1,0 +1,24 @@
+{
+  "name": "fontkit-rs",
+  "version": "0.1.0",
+  "description": "Toolkit used to load, match, measure, and render texts",
+  "main": "pkg/bundler/index.js",
+  "directories": {
+    "example": "examples",
+    "test": "tests"
+  },
+  "scripts": {
+    "prepack": "cargo build --target wasm32-unknown-unknown --release && wasm-bindgen --target bundler --out-dir pkg/bundler ./target/wasm32-unknown-unknown/release/fontkit.wasm",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:alibaba/font-toolkit.git"
+  },
+  "files": [
+    "pkg"
+  ],
+  "author": "Zimon Dai <daizhuoxian@gmail.com>",
+  "license": "MIT",
+  "types": "./pkg/bundler/index.d.ts"
+}
