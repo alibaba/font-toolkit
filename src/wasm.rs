@@ -66,6 +66,12 @@ impl GlyphPath {
             .transform(&Transform2F::from_translation(Vector2F::new(x, y)));
     }
 
+    /// Dilate the glyph path, keeping the "stroke" width the same while scaling
+    /// the overall size
+    pub fn dilate(&mut self, amount_x: f32, amount_y: f32) {
+        self.outline.dilate(Vector2F::new(amount_x, amount_y))
+    }
+
     /// Output the path following SVG <path> `d` style
     pub fn to_string(&mut self) -> String {
         format!("{:?}", self.outline)
