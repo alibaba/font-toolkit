@@ -2,3 +2,4 @@
 Cargo.lock
 /wasm-node
 /wasm-bundler
+pkg
