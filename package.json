@@ -7,18 +7,59 @@
     "example": "examples",
     "test": "tests"
   },
-  "scripts": {
-    "prepack": "cargo build --target wasm32-unknown-unknown --release && wasm-bindgen --target bundler --out-dir pkg/bundler ./target/wasm32-unknown-unknown/release/fontkit.wasm",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git@github.com:alibaba/font-toolkit.git"
-  },
   "files": [
     "pkg"
   ],
   "author": "Zimon Dai <daizhuoxian@gmail.com>",
   "license": "MIT",
-  "types": "./pkg/bundler/index.d.ts"
+  "types": "./pkg/bundler/index.d.ts",
+  "scripts": {
+    "prepack": "cargo build --target wasm32-unknown-unknown --release && wasm-bindgen --target bundler --out-dir pkg/bundler ./target/wasm32-unknown-unknown/release/fontkit.wasm",
+    "build": "wasm-pack build --target nodejs --out-name index --out-dir wasm-node --release",
+    "test": "ava",
+    "format:md": "prettier --parser markdown --write './**/*.md'",
+    "format:json": "prettier --parser json --write './**/*.json'",
+    "format:svg": "prettier --parser html --write './**/*.svg'",
+    "format:rs": "cargo fmt",
+    "format:source": "prettier --config ./package.json --write './**/*.{js,ts,mjs}'",
+    "format:yaml": "prettier --parser yaml --write './**/*.{yml,yaml}'",
+    "lint": "eslint . -c ./.eslintrc.yml './**/*.{ts,tsx,js}'",
+    "lint:fix": "eslint . -c ./.eslintrc.yml './**/*.{ts,tsx,js}' --fix"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:alibaba/font-toolkit.git"
+  },
+  "devDependencies": {
+    "@swc-node/register": "^1.4.2",
+    "@typescript-eslint/eslint-plugin": "^5.15.0",
+    "@typescript-eslint/parser": "^5.15.0",
+    "ava": "^3.15.0",
+    "eslint": "^8.11.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-import": "^2.25.4",
+    "eslint-plugin-prettier": "^4.0.0",
+    "eslint-plugin-sonarjs": "^0.12.0",
+    "prettier": "^2.6.0"
+  },
+  "ava": {
+    "require": [
+      "@swc-node/register"
+    ],
+    "extensions": [
+      "ts"
+    ],
+    "timeout": "2m",
+    "environmentVariables": {
+      "TS_NODE_PROJECT": "./tsconfig.json"
+    }
+  },
+  "prettier": {
+    "printWidth": 120,
+    "semi": false,
+    "trailingComma": "all",
+    "singleQuote": true,
+    "arrowParens": "always",
+    "parser": "typescript"
+  }
 }
