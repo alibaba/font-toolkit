@@ -1,11 +1,13 @@
 use arc_swap::ArcSwap;
-#[cfg(node)]
-use napi_derive::napi;
 use ouroboros::self_referencing;
+#[cfg(not(wasm))]
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::io::Cursor;
-use std::path::{Path, PathBuf};
+#[cfg(not(wasm))]
+use std::path::Path;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use ttf_parser::{Face, Width as ParserWidth};
@@ -25,7 +27,8 @@ mod wasm;
 
 pub use error::Error;
 
-struct Width(ParserWidth);
+#[cfg_attr(wasm, wasm_bindgen)]
+pub struct Width(ParserWidth);
 
 impl FromStr for Width {
     type Err = ();
@@ -46,6 +49,23 @@ impl FromStr for Width {
     }
 }
 
+impl From<u16> for Width {
+    fn from(stretch: u16) -> Self {
+        Width(match stretch {
+            1 => ParserWidth::UltraCondensed,
+            2 => ParserWidth::ExtraCondensed,
+            3 => ParserWidth::Condensed,
+            4 => ParserWidth::SemiCondensed,
+            5 => ParserWidth::Normal,
+            6 => ParserWidth::SemiExpanded,
+            7 => ParserWidth::Expanded,
+            8 => ParserWidth::ExtraExpanded,
+            9 => ParserWidth::UltraExpanded,
+            _ => ParserWidth::Normal,
+        })
+    }
+}
+
 impl ToString for Width {
     fn to_string(&self) -> String {
         match self.0 {
@@ -63,7 +83,6 @@ impl ToString for Width {
     }
 }
 
-#[cfg_attr(node, napi)]
 #[cfg_attr(wasm, wasm_bindgen)]
 #[cfg_attr(features = "serde", serde::Serialize)]
 #[cfg_attr(features = "serde", serde::Deserialize)]
@@ -89,6 +108,15 @@ impl fmt::Display for FontKey {
 
 #[cfg_attr(wasm, wasm_bindgen)]
 impl FontKey {
+    pub fn new(family: &str, weight: u32, italic: bool, stretch: Width) -> Self {
+        FontKey {
+            family: family.to_string(),
+            weight,
+            italic,
+            stretch: stretch.0.to_number() as u32,
+        }
+    }
+
     #[inline]
     fn stretch_enum(&self) -> ParserWidth {
         match self.stretch {
@@ -201,7 +229,7 @@ impl Font {
         self.face.swap(Arc::new(None));
     }
 
-    #[cfg(not(wasm32))]
+    #[cfg(not(wasm))]
     pub fn load(&self) -> Result<(), Error> {
         use std::io::Read;
 
@@ -245,6 +273,10 @@ impl Font {
         let f = f.borrow_face();
         f.units_per_em()
     }
+
+    pub fn path(&self) -> Option<&PathBuf> {
+        self.path.as_ref()
+    }
 }
 
 #[self_referencing]
@@ -255,21 +287,13 @@ pub struct StaticFace {
     pub(crate) face: Face<'this>,
 }
 
-#[cfg_attr(node, napi)]
 #[cfg_attr(wasm, wasm_bindgen)]
 pub struct FontKit {
     fonts: Vec<Font>,
 }
 
-#[cfg_attr(node, napi)]
 #[cfg_attr(wasm, wasm_bindgen)]
 impl FontKit {
-    #[cfg(napi)]
-    #[nap(constructor)]
-    pub fn new_napi() -> FontKit {
-        FontKit::new()
-    }
-
     #[cfg(wasm)]
     #[wasm_bindgen(constructor)]
     /// Create a font registry
@@ -293,6 +317,10 @@ impl FontKit {
         Some(wasm::FontWasm {
             ptr: font as *const _,
         })
+    }
+
+    pub fn len(&self) -> usize {
+        self.fonts.len()
     }
 }
 
@@ -423,4 +451,106 @@ enum Filter<'a> {
     Italic(bool),
     Weight(u32),
     Stretch(u32),
+}
+
+#[cfg(not(wasm))]
+std::thread_local! {
+    static ALLOCS: RefCell<HashMap<u64, usize>> = RefCell::new(HashMap::new());
+}
+
+#[cfg(not(wasm))]
+static mut FONTKIT: Option<FontKit> = None;
+
+#[cfg(not(wasm))]
+#[no_mangle]
+pub unsafe extern "C" fn build_font_kit(custom_path: *const u8, len: usize) {
+    if FONTKIT.is_some() {
+        return;
+    }
+    let custom_path = std::slice::from_raw_parts(custom_path, len);
+    let custom_path = std::str::from_utf8(custom_path).unwrap();
+    let mut fontkit = FontKit::new();
+    if custom_path != "" {
+        fontkit.search_fonts_from_path(&custom_path).unwrap();
+    }
+    FONTKIT = Some(fontkit);
+}
+
+#[cfg(not(wasm))]
+#[no_mangle]
+pub unsafe extern "C" fn font_for_face(
+    font_face: *const u8,
+    len: usize,
+    weight: u32,
+    italic: bool,
+    stretch: u16,
+) -> *const u8 {
+    let font_face = std::slice::from_raw_parts(font_face, len);
+    let font_face = std::str::from_utf8(font_face).unwrap();
+    let fontkit = FONTKIT.as_ref().unwrap();
+    let key = FontKey::new(font_face, weight, italic, stretch.into());
+    let font = fontkit.query(&key);
+    match font {
+        Some(font) => font as *const _ as *const u8,
+        None => {
+            eprintln!("{:?} not found in {} fonts", key, fontkit.len());
+            std::ptr::null()
+        }
+    }
+}
+
+#[cfg(not(wasm))]
+#[no_mangle]
+pub unsafe extern "C" fn path_for_font(font: *const u8) -> *const u8 {
+    let font = &*(font as *const Font);
+    let path = match font.path().and_then(|p| p.to_str()).map(|p| p.to_string()) {
+        Some(p) => p,
+        None => return 0 as _,
+    };
+    let buffer = path.as_bytes().to_vec();
+    let (ptr, len) = into_raw(buffer);
+    ALLOCS.with(|map| map.borrow_mut().insert(ptr as u64, len));
+    ptr
+}
+
+#[cfg(not(wasm))]
+#[no_mangle]
+pub fn alloc() -> *mut u8 {
+    let v = vec![0_u8; 1024];
+    let (ptr, _) = into_raw(v);
+    ptr
+}
+
+#[cfg(not(wasm))]
+fn into_raw<T>(mut v: Vec<T>) -> (*mut T, usize) {
+    let ptr = v.as_mut_ptr();
+    let len = v.len();
+    v.shrink_to_fit();
+    std::mem::forget(v);
+    (ptr, len)
+}
+
+#[cfg(not(wasm))]
+#[no_mangle]
+pub unsafe fn mfree(ptr: *mut u8) {
+    let _ = Vec::from_raw_parts(ptr, 1024, 1024);
+}
+
+#[cfg(not(wasm))]
+#[no_mangle]
+pub unsafe fn free_str(ptr: *mut u8) {
+    if let Some(len) = ALLOCS.with(|map| map.borrow_mut().remove(&(ptr as u64))) {
+        let _ = Vec::from_raw_parts(ptr, len, len);
+    }
+}
+
+#[cfg(not(wasm))]
+#[no_mangle]
+pub fn str_length(ptr: *const u8) -> u32 {
+    ALLOCS.with(|map| {
+        map.borrow()
+            .get(&(ptr as u64))
+            .map(|l| *l as u32)
+            .unwrap_or_default()
+    })
 }

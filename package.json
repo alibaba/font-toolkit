@@ -15,11 +15,9 @@
   "types": "./pkg/bundler/index.d.ts",
   "scripts": {
     "prepack": "cargo build --target wasm32-unknown-unknown --release && wasm-bindgen --target bundler --out-dir pkg/bundler --out-name index ./target/wasm32-unknown-unknown/release/fontkit.wasm",
-    "build": "wasm-pack build --target nodejs --out-name index --out-dir pkg/node --release",
+    "build": "wasm-pack build --target bundler --out-name index --out-dir pkg/bundler --release",
+    "build:wasi": "cargo build --release --target wasm32-wasi && mkdir -p pkg/wasi && cp target/wasm32-wasi/release/fontkit.wasm pkg/wasi/",
     "test": "ava",
-    "format:md": "prettier --parser markdown --write './**/*.md'",
-    "format:json": "prettier --parser json --write './**/*.json'",
-    "format:svg": "prettier --parser html --write './**/*.svg'",
     "format:rs": "cargo fmt",
     "format:source": "prettier --config ./package.json --write './**/*.{js,ts,mjs}'",
     "format:yaml": "prettier --parser yaml --write './**/*.{yml,yaml}'",
