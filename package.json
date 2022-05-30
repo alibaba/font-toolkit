@@ -59,5 +59,6 @@
     "singleQuote": true,
     "arrowParens": "always",
     "parser": "typescript"
-  }
+  },
+  "dependencies": {}
 }

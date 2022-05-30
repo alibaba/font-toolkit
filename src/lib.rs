@@ -146,7 +146,7 @@ impl FontKey {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Name {
     pub name: String,
     #[allow(unused)]
@@ -349,12 +349,19 @@ impl FontKit {
     /// font buffer to reduce memory consumption
     #[cfg(not(wasm))]
     pub fn search_fonts_from_path(&mut self, path: impl AsRef<Path>) -> Result<(), Error> {
+        use std::collections::HashSet;
         use std::io::Read;
 
         let mut buffer = Vec::new();
+        let mut searched = HashSet::new();
         for entry in WalkDir::new(path) {
+            println!("new entry {:?}", entry);
             let entry = entry?;
-            let path = entry.path();
+            let path = entry.path().to_path_buf();
+            if searched.contains(&path) {
+                break;
+            }
+            searched.insert(path.clone());
             let ext = path
                 .extension()
                 .and_then(|s| s.to_str())
@@ -366,11 +373,11 @@ impl FontKit {
             };
             match ext {
                 "ttf" | "otf" | "ttc" | "woff2" | "woff" => {
-                    let mut file = std::fs::File::open(path).unwrap();
+                    let mut file = std::fs::File::open(&path).unwrap();
                     buffer.clear();
                     file.read_to_end(&mut buffer).unwrap();
                     let mut font = Font::from_buffer(&buffer)?;
-                    font.path = Some(path.to_path_buf());
+                    font.path = Some(path.clone());
                     font.unload();
                     self.fonts.push(font);
                 }
@@ -459,35 +466,41 @@ std::thread_local! {
 }
 
 #[cfg(not(wasm))]
-static mut FONTKIT: Option<FontKit> = None;
+#[no_mangle]
+pub unsafe extern "C" fn build_font_kit() -> *const u8 {
+    let fontkit = FontKit::new();
+    Box::into_raw(Box::new(fontkit)) as _
+}
 
 #[cfg(not(wasm))]
 #[no_mangle]
-pub unsafe extern "C" fn build_font_kit(custom_path: *const u8, len: usize) {
-    if FONTKIT.is_some() {
-        return;
-    }
+pub unsafe extern "C" fn add_search_path(fontkit: *mut u8, custom_path: *const u8, len: usize) {
+    let fontkit = &mut *(fontkit as *mut FontKit);
     let custom_path = std::slice::from_raw_parts(custom_path, len);
-    let custom_path = std::str::from_utf8(custom_path).unwrap();
-    let mut fontkit = FontKit::new();
-    if custom_path != "" {
-        fontkit.search_fonts_from_path(&custom_path).unwrap();
+    match std::str::from_utf8(custom_path) {
+        Ok("") => {}
+        Ok(path) => {
+            fontkit.search_fonts_from_path(path).unwrap();
+        }
+        Err(e) => {
+            eprintln!("{:?}", e)
+        }
     }
-    FONTKIT = Some(fontkit);
 }
 
 #[cfg(not(wasm))]
 #[no_mangle]
 pub unsafe extern "C" fn font_for_face(
+    fontkit: *mut FontKit,
     font_face: *const u8,
     len: usize,
     weight: u32,
     italic: bool,
     stretch: u16,
 ) -> *const u8 {
+    let fontkit = &mut *fontkit;
     let font_face = std::slice::from_raw_parts(font_face, len);
     let font_face = std::str::from_utf8(font_face).unwrap();
-    let fontkit = FONTKIT.as_ref().unwrap();
     let key = FontKey::new(font_face, weight, italic, stretch.into());
     let font = fontkit.query(&key);
     match font {
@@ -534,6 +547,12 @@ fn into_raw<T>(mut v: Vec<T>) -> (*mut T, usize) {
 #[no_mangle]
 pub unsafe fn mfree(ptr: *mut u8) {
     let _ = Vec::from_raw_parts(ptr, 1024, 1024);
+}
+
+#[cfg(not(wasm))]
+#[no_mangle]
+pub unsafe fn free_fontkit(ptr: *mut FontKit) {
+    let _ = Box::from_raw(ptr);
 }
 
 #[cfg(not(wasm))]
