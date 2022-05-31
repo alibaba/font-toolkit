@@ -11,8 +11,8 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use ttf_parser::{Face, Width as ParserWidth};
-#[cfg(not(wasm))]
-use walkdir::WalkDir;
+// #[cfg(not(wasm))]
+// use walkdir::WalkDir;
 #[cfg(wasm)]
 use wasm_bindgen::prelude::*;
 
@@ -349,41 +349,39 @@ impl FontKit {
     /// font buffer to reduce memory consumption
     #[cfg(not(wasm))]
     pub fn search_fonts_from_path(&mut self, path: impl AsRef<Path>) -> Result<(), Error> {
-        use std::collections::HashSet;
+        // use std::collections::HashSet;
         use std::io::Read;
 
         let mut buffer = Vec::new();
-        let mut searched = HashSet::new();
-        for entry in WalkDir::new(path) {
-            println!("new entry {:?}", entry);
-            let entry = entry?;
-            let path = entry.path().to_path_buf();
-            if searched.contains(&path) {
-                break;
+        // let mut searched = HashSet::new();
+        // let root = path.as_ref();
+        // for entry in WalkDir::new(root).max_depth(1) {
+        // let entry = entry?;
+        let path = path.as_ref().to_path_buf();
+        println!("new entry {:?}", path);
+        // searched.insert(path.clone());
+        let ext = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_lowercase());
+        let ext = ext.as_deref();
+        let ext = match ext {
+            Some(e) => e,
+            None => return Ok(()),
+        };
+        match ext {
+            "ttf" | "otf" | "ttc" | "woff2" | "woff" => {
+                let mut file = std::fs::File::open(&path).unwrap();
+                buffer.clear();
+                file.read_to_end(&mut buffer).unwrap();
+                let mut font = Font::from_buffer(&buffer)?;
+                font.path = Some(path.clone());
+                font.unload();
+                self.fonts.push(font);
             }
-            searched.insert(path.clone());
-            let ext = path
-                .extension()
-                .and_then(|s| s.to_str())
-                .map(|s| s.to_lowercase());
-            let ext = ext.as_deref();
-            let ext = match ext {
-                Some(e) => e,
-                None => continue,
-            };
-            match ext {
-                "ttf" | "otf" | "ttc" | "woff2" | "woff" => {
-                    let mut file = std::fs::File::open(&path).unwrap();
-                    buffer.clear();
-                    file.read_to_end(&mut buffer).unwrap();
-                    let mut font = Font::from_buffer(&buffer)?;
-                    font.path = Some(path.clone());
-                    font.unload();
-                    self.fonts.push(font);
-                }
-                _ => continue,
-            }
+            _ => return Ok(()),
         }
+        // }
         Ok(())
     }
 
@@ -480,7 +478,9 @@ pub unsafe extern "C" fn add_search_path(fontkit: *mut u8, custom_path: *const u
     match std::str::from_utf8(custom_path) {
         Ok("") => {}
         Ok(path) => {
-            fontkit.search_fonts_from_path(path).unwrap();
+            if let Err(e) = fontkit.search_fonts_from_path(path) {
+                eprintln!("{:?}", e);
+            }
         }
         Err(e) => {
             eprintln!("{:?}", e)

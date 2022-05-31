@@ -8,7 +8,8 @@
     "test": "tests"
   },
   "files": [
-    "pkg"
+    "pkg",
+    "node.mjs"
   ],
   "author": "Zimon Dai <daizhuoxian@gmail.com>",
   "license": "MIT",
@@ -60,5 +61,8 @@
     "arrowParens": "always",
     "parser": "typescript"
   },
-  "dependencies": {}
+  "type": "module",
+  "dependencies": {
+    "walkdir": "^0.4.1"
+  }
 }

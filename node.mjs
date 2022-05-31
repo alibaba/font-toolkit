@@ -3,6 +3,7 @@ import { homedir } from 'os';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
+import walkdir from 'walkdir';
 import { WASI } from 'wasi';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -18,11 +19,10 @@ const buf = readFileSync(WASM_PATH);
 const wasiModule = await WebAssembly.compile(new Uint8Array(buf));
 
 // Encode string into memory starting at address base.
-const encode = (memory, string) => {
-  for (let i = 0; i < string.length; i++) {
-    memory[i] = string.charCodeAt(i);
+const encode = (memory, buffer) => {
+  for (let i = 0; i < buffer.length; i++) {
+    memory[i] = buffer[i];
   }
-  memory[string.length] = 0;
 };
 
 export const FontWeight = Object.freeze({
@@ -69,8 +69,10 @@ export class FontKitIndex {
 
   font(fontFamily, weight = 400, isItalic = false, stretch = FontStretch.Normal) {
     const pInput = this.instance.exports.alloc();
-    const view = new Uint8Array(this.instance.exports.memory.buffer, pInput, fontFamily.length);
-    encode(view, fontFamily);
+    const encoder = new TextEncoder();
+    const buffer = encoder.encode(fontFamily);
+    const view = new Uint8Array(this.instance.exports.memory.buffer, pInput, buffer.length);
+    encode(view, buffer);
     const font = this.instance.exports.font_for_face(
       this.fontkit_ptr,
       pInput,
@@ -85,11 +87,21 @@ export class FontKitIndex {
   }
 
   addSearchPath(searchPath) {
-    const pInput = this.instance.exports.alloc();
-    const view = new Uint8Array(this.instance.exports.memory.buffer, pInput, searchPath.length);
-    encode(view, searchPath);
-    this.instance.exports.add_search_path(this.fontkit_ptr, pInput, searchPath.length);
-    this.instance.exports.mfree(pInput);
+    const instance = this.instance;
+    const ptr = this.fontkit_ptr;
+    try {
+      walkdir(searchPath, { sync: true }, (path) => {
+        const encoder = new TextEncoder();
+        const buffer = encoder.encode(path);
+        const pInput = instance.exports.alloc();
+        const view = new Uint8Array(instance.exports.memory.buffer, pInput, buffer.length);
+        encode(view, buffer);
+        instance.exports.add_search_path(ptr, pInput, path.length);
+        instance.exports.mfree(pInput);
+      });
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   free() {
