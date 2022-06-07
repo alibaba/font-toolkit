@@ -26,6 +26,7 @@ mod ras;
 mod wasm;
 
 pub use error::Error;
+pub use usvg::PathSegment;
 
 #[cfg_attr(wasm, wasm_bindgen)]
 pub struct Width(ParserWidth);
@@ -355,33 +356,41 @@ impl FontKit {
         let mut buffer = Vec::new();
         // let mut searched = HashSet::new();
         // let root = path.as_ref();
-        // for entry in WalkDir::new(root).max_depth(1) {
-        // let entry = entry?;
-        let path = path.as_ref().to_path_buf();
-        println!("new entry {:?}", path);
-        // searched.insert(path.clone());
-        let ext = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_lowercase());
-        let ext = ext.as_deref();
-        let ext = match ext {
-            Some(e) => e,
-            None => return Ok(()),
-        };
-        match ext {
-            "ttf" | "otf" | "ttc" | "woff2" | "woff" => {
-                let mut file = std::fs::File::open(&path).unwrap();
-                buffer.clear();
-                file.read_to_end(&mut buffer).unwrap();
-                let mut font = Font::from_buffer(&buffer)?;
-                font.path = Some(path.clone());
-                font.unload();
-                self.fonts.push(font);
+        for entry in walkdir::WalkDir::new(path) {
+            let entry = entry?;
+            log::trace!("new entry {:?}", entry);
+            let path = entry.path();
+            if path.is_dir() {
+                continue;
             }
-            _ => return Ok(()),
+            let ext = path
+                .extension()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_lowercase());
+            let ext = ext.as_deref();
+            let ext = match ext {
+                Some(e) => e,
+                None => return Ok(()),
+            };
+            match ext {
+                "ttf" | "otf" | "ttc" | "woff2" | "woff" => {
+                    let mut file = std::fs::File::open(&path).unwrap();
+                    buffer.clear();
+                    file.read_to_end(&mut buffer).unwrap();
+                    let mut font = match Font::from_buffer(&buffer) {
+                        Ok(f) => f,
+                        Err(e) => {
+                            log::warn!("Failed loading font {:?}: {:?}", path, e);
+                            continue;
+                        }
+                    };
+                    font.path = Some(path.to_path_buf());
+                    font.unload();
+                    self.fonts.push(font);
+                }
+                _ => return Ok(()),
+            }
         }
-        // }
         Ok(())
     }
 

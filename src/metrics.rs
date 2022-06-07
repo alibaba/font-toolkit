@@ -144,6 +144,12 @@ pub struct TextMetrics {
     units: u16,
 }
 
+impl TextMetrics {
+    pub fn positions(&self) -> &[PositionedChar] {
+        &self.positions
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PositionedChar {
     pub metrics: CharMetrics,
