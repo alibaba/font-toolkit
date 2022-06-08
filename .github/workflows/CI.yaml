@@ -3,22 +3,22 @@ name: CI
 env:
   DEBUG: napi:*
   APP_NAME: font-toolkit
-  MACOSX_DEPLOYMENT_TARGET: '10.13'
+  MACOSX_DEPLOYMENT_TARGET: "10.13"
 
-'on':
+"on":
   push:
     branches:
       - main
     tags-ignore:
-      - '**'
+      - "**"
     # 忽略以下文件
     paths-ignore:
-      - '**/*.md'
-      - 'LICENSE'
-      - '**/*.gitignore'
-      - '.editorconfig'
-      - 'docs/**'
-      - 'example/*.png'
+      - "**/*.md"
+      - "LICENSE"
+      - "**/*.gitignore"
+      - ".editorconfig"
+      - "docs/**"
+      - "example/*.png"
 
   pull_request: null
 
@@ -28,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['12', '14', '16']
+        node: ["14", "16"]
     runs-on: ubuntu-latest
 
     steps:
@@ -54,7 +54,7 @@ jobs:
       - name: Install wasm-pack
         uses: jetli/wasm-pack-action@v0.3.0
         with:
-          version: 'latest'
+          version: "latest"
 
       - name: Install dependencies
         run: yarn install --ignore-scripts --frozen-lockfile --registry https://registry.npmjs.org --network-timeout 300000
@@ -69,5 +69,4 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: wasm32
-          path: wasm-node/*.wasm
-
+          path: pkg/**/*.wasm

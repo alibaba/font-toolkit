@@ -9,44 +9,47 @@
   },
   "files": [
     "pkg",
-    "node.mjs"
+    "node.mjs",
+    "Readme.md"
   ],
   "author": "Zimon Dai <daizhuoxian@gmail.com>",
   "license": "MIT",
   "types": "./pkg/bundler/index.d.ts",
   "scripts": {
-    "prepack": "cargo build --target wasm32-unknown-unknown --release && wasm-bindgen --target bundler --out-dir pkg/bundler --out-name index ./target/wasm32-unknown-unknown/release/fontkit.wasm",
-    "build": "wasm-pack build --target bundler --out-name index --out-dir pkg/bundler --release",
+    "prepack": "cargo build --target wasm32-unknown-unknown --release && wasm-bindgen --target nodejs --out-dir pkg/node --out-name index ./target/wasm32-unknown-unknown/release/fontkit.wasm",
+    "build": "wasm-pack build --target nodejs --out-name index --out-dir pkg/node --release && wasm-pack build --target nodejs --out-name index --out-dir pkg/node --release && rm -rf pkg/bundler/package.json",
     "build:wasi": "cargo build --release --target wasm32-wasi && mkdir -p pkg/wasi && cp target/wasm32-wasi/release/fontkit.wasm pkg/wasi/",
     "test": "ava",
     "format:rs": "cargo fmt",
     "format:source": "prettier --config ./package.json --write './**/*.{js,ts,mjs}'",
     "format:yaml": "prettier --parser yaml --write './**/*.{yml,yaml}'",
-    "lint": "eslint . -c ./.eslintrc.yml './**/*.{ts,tsx,js}'",
-    "lint:fix": "eslint . -c ./.eslintrc.yml './**/*.{ts,tsx,js}' --fix"
+    "lint": "eslint -c ./.eslintrc.yml './**/*.{ts,tsx,js}'",
+    "lint:fix": "eslint -c ./.eslintrc.yml './**/*.{ts,tsx,js}' --fix"
   },
   "repository": {
     "type": "git",
     "url": "git@github.com:alibaba/font-toolkit.git"
   },
   "devDependencies": {
-    "@swc-node/register": "^1.4.2",
+    "@types/node": "^17.0.41",
     "@typescript-eslint/eslint-plugin": "^5.15.0",
     "@typescript-eslint/parser": "^5.15.0",
-    "ava": "^3.15.0",
+    "ava": "^4.3.0",
     "eslint": "^8.11.0",
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-import": "^2.25.4",
     "eslint-plugin-prettier": "^4.0.0",
     "eslint-plugin-sonarjs": "^0.12.0",
-    "prettier": "^2.6.0"
+    "prettier": "^2.6.0",
+    "ts-node": "^10.8.1",
+    "typescript": "^4.7.3"
   },
   "ava": {
-    "require": [
-      "@swc-node/register"
-    ],
-    "extensions": [
-      "ts"
+    "extensions": {
+      "ts": "module"
+    },
+    "nodeArguments": [
+      "--loader=ts-node/esm"
     ],
     "timeout": "2m",
     "environmentVariables": {

@@ -2,7 +2,6 @@ use crate::*;
 use pathfinder_content::outline::Outline;
 use pathfinder_geometry::transform2d::Transform2F;
 use pathfinder_geometry::vector::Vector2F;
-use wasm_bindgen::prelude::*;
 
 /// Interface for querying data in a Font
 #[wasm_bindgen(js_name = "Font")]

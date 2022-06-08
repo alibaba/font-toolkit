@@ -6,6 +6,8 @@ import { fileURLToPath } from 'url';
 import walkdir from 'walkdir';
 import { WASI } from 'wasi';
 
+export * from 'pkg/node/index';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const WASM_PATH = resolve(__dirname, 'pkg/wasi/fontkit.wasm');
