@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { fstatSync, readFileSync } from 'fs';
 import { homedir } from 'os';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import walkdir from 'walkdir';
 import { WASI } from 'wasi';
 
-export * from 'pkg/node/index';
+export * from './pkg/node/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -93,6 +93,7 @@ export class FontKitIndex {
     const ptr = this.fontkit_ptr;
     try {
       walkdir(searchPath, { sync: true }, (path) => {
+        if (fstatSync(path).isDirectory()) return;
         const encoder = new TextEncoder();
         const buffer = encoder.encode(path);
         const pInput = instance.exports.alloc();
@@ -102,7 +103,7 @@ export class FontKitIndex {
         instance.exports.mfree(pInput);
       });
     } catch (e) {
-      console.error(e);
+      // Ignore
     }
   }
 

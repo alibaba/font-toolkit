@@ -350,12 +350,7 @@ impl FontKit {
     /// font buffer to reduce memory consumption
     #[cfg(not(wasm))]
     pub fn search_fonts_from_path(&mut self, path: impl AsRef<Path>) -> Result<(), Error> {
-        // use std::collections::HashSet;
-        use std::io::Read;
-
-        let mut buffer = Vec::new();
-        // let mut searched = HashSet::new();
-        // let root = path.as_ref();
+        #[cfg(not(any(wasm, wasi)))]
         for entry in walkdir::WalkDir::new(path) {
             let entry = entry?;
             log::trace!("new entry {:?}", entry);
@@ -363,33 +358,13 @@ impl FontKit {
             if path.is_dir() {
                 continue;
             }
-            let ext = path
-                .extension()
-                .and_then(|s| s.to_str())
-                .map(|s| s.to_lowercase());
-            let ext = ext.as_deref();
-            let ext = match ext {
-                Some(e) => e,
-                None => return Ok(()),
-            };
-            match ext {
-                "ttf" | "otf" | "ttc" | "woff2" | "woff" => {
-                    let mut file = std::fs::File::open(&path).unwrap();
-                    buffer.clear();
-                    file.read_to_end(&mut buffer).unwrap();
-                    let mut font = match Font::from_buffer(&buffer) {
-                        Ok(f) => f,
-                        Err(e) => {
-                            log::warn!("Failed loading font {:?}: {:?}", path, e);
-                            continue;
-                        }
-                    };
-                    font.path = Some(path.to_path_buf());
-                    font.unload();
-                    self.fonts.push(font);
-                }
-                _ => return Ok(()),
+            if let Some(font) = load_font_from_path(&path) {
+                self.fonts.push(font);
             }
+        }
+        #[cfg(wasi)]
+        if let Some(font) = load_font_from_path(path.as_ref()) {
+            self.fonts.push(font);
         }
         Ok(())
     }
@@ -457,6 +432,41 @@ impl FontKit {
             }
         }
         None
+    }
+}
+
+#[cfg(not(wasm))]
+fn load_font_from_path(path: impl AsRef<std::path::Path>) -> Option<Font> {
+    use std::io::Read;
+
+    let mut buffer = Vec::new();
+    let path = path.as_ref();
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_lowercase());
+    let ext = ext.as_deref();
+    let ext = match ext {
+        Some(e) => e,
+        None => return None,
+    };
+    match ext {
+        "ttf" | "otf" | "ttc" | "woff2" | "woff" => {
+            let mut file = std::fs::File::open(&path).unwrap();
+            buffer.clear();
+            file.read_to_end(&mut buffer).unwrap();
+            let mut font = match Font::from_buffer(&buffer) {
+                Ok(f) => f,
+                Err(e) => {
+                    log::warn!("Failed loading font {:?}: {:?}", path, e);
+                    return None;
+                }
+            };
+            font.path = Some(path.to_path_buf());
+            font.unload();
+            Some(font)
+        }
+        _ => None,
     }
 }
 
