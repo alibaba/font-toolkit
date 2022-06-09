@@ -2,7 +2,7 @@ import { homedir } from 'os';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-import { FontKitIndex } from '../node.mjs';
+import { FontKitIndex } from '../node.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

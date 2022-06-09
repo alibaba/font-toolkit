@@ -81,7 +81,7 @@ import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 // Import the Node.js specific entry module
-import { FontKitIndex } from '../node.mjs';
+import { FontKitIndex } from '../node.js';
 
 // Get current path, or you could use any path containing font files
 const __dirname = dirname(fileURLToPath(import.meta.url));

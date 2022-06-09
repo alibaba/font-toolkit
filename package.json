@@ -9,7 +9,7 @@
   },
   "files": [
     "pkg",
-    "node.mjs",
+    "node.js",
     "Readme.md"
   ],
   "author": "Zimon Dai <daizhuoxian@gmail.com>",
