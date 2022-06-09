@@ -147,7 +147,7 @@ impl FontKey {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
 struct Name {
     pub name: String,
     #[allow(unused)]
@@ -483,6 +483,7 @@ std::thread_local! {
 }
 
 #[cfg(not(wasm))]
+#[doc(hidden)]
 #[no_mangle]
 pub unsafe extern "C" fn build_font_kit() -> *const u8 {
     let fontkit = FontKit::new();
@@ -490,6 +491,7 @@ pub unsafe extern "C" fn build_font_kit() -> *const u8 {
 }
 
 #[cfg(not(wasm))]
+#[doc(hidden)]
 #[no_mangle]
 pub unsafe extern "C" fn add_search_path(fontkit: *mut u8, custom_path: *const u8, len: usize) {
     let fontkit = &mut *(fontkit as *mut FontKit);
@@ -508,6 +510,7 @@ pub unsafe extern "C" fn add_search_path(fontkit: *mut u8, custom_path: *const u
 }
 
 #[cfg(not(wasm))]
+#[doc(hidden)]
 #[no_mangle]
 pub unsafe extern "C" fn font_for_face(
     fontkit: *mut FontKit,
@@ -532,6 +535,7 @@ pub unsafe extern "C" fn font_for_face(
 }
 
 #[cfg(not(wasm))]
+#[doc(hidden)]
 #[no_mangle]
 pub unsafe extern "C" fn path_for_font(font: *const u8) -> *const u8 {
     let font = &*(font as *const Font);
@@ -546,6 +550,7 @@ pub unsafe extern "C" fn path_for_font(font: *const u8) -> *const u8 {
 }
 
 #[cfg(not(wasm))]
+#[doc(hidden)]
 #[no_mangle]
 pub fn alloc() -> *mut u8 {
     let v = vec![0_u8; 1024];
@@ -563,18 +568,21 @@ fn into_raw<T>(mut v: Vec<T>) -> (*mut T, usize) {
 }
 
 #[cfg(not(wasm))]
+#[doc(hidden)]
 #[no_mangle]
 pub unsafe fn mfree(ptr: *mut u8) {
     let _ = Vec::from_raw_parts(ptr, 1024, 1024);
 }
 
 #[cfg(not(wasm))]
+#[doc(hidden)]
 #[no_mangle]
 pub unsafe fn free_fontkit(ptr: *mut FontKit) {
     let _ = Box::from_raw(ptr);
 }
 
 #[cfg(not(wasm))]
+#[doc(hidden)]
 #[no_mangle]
 pub unsafe fn free_str(ptr: *mut u8) {
     if let Some(len) = ALLOCS.with(|map| map.borrow_mut().remove(&(ptr as u64))) {
@@ -583,6 +591,7 @@ pub unsafe fn free_str(ptr: *mut u8) {
 }
 
 #[cfg(not(wasm))]
+#[doc(hidden)]
 #[no_mangle]
 pub fn str_length(ptr: *const u8) -> u32 {
     ALLOCS.with(|map| {
@@ -591,4 +600,30 @@ pub fn str_length(ptr: *const u8) -> u32 {
             .map(|l| *l as u32)
             .unwrap_or_default()
     })
+}
+
+#[cfg(not(wasm))]
+#[doc(hidden)]
+#[no_mangle]
+pub unsafe extern "C" fn list_all_font(fontkit: *mut FontKit) -> *const u8 {
+    let kit = &*fontkit;
+    let fonts = kit
+        .fonts
+        .iter()
+        .map(|font| {
+            let key = font.key();
+            serde_json::json!({
+                "names": font.names,
+                "stretch": Width::from(key.stretch as u16).to_string(),
+                "italic": key.italic,
+                "weight": key.weight,
+                "family": key.family()
+            })
+        })
+        .collect::<Vec<_>>();
+    let data = serde_json::to_string(&fonts).unwrap();
+    let buffer = data.as_bytes().to_vec();
+    let (ptr, len) = into_raw(buffer);
+    ALLOCS.with(|map| map.borrow_mut().insert(ptr as u64, len));
+    ptr
 }

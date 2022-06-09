@@ -1,4 +1,4 @@
-import { fstatSync, readFileSync } from 'fs';
+import { lstatSync, readFileSync } from 'fs';
 import { homedir } from 'os';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -93,7 +93,7 @@ export class FontKitIndex {
     const ptr = this.fontkit_ptr;
     try {
       walkdir(searchPath, { sync: true }, (path) => {
-        if (fstatSync(path).isDirectory()) return;
+        if (lstatSync(path).isDirectory()) return;
         const encoder = new TextEncoder();
         const buffer = encoder.encode(path);
         const pInput = instance.exports.alloc();
@@ -104,6 +104,19 @@ export class FontKitIndex {
       });
     } catch (e) {
       // Ignore
+    }
+  }
+
+  list() {
+    const ptr = this.instance.exports.list_all_font(this.fontkit_ptr);
+    const length = this.instance.exports.str_length(ptr);
+    if (length) {
+      const buffer = new Uint8Array(this.instance.exports.memory.buffer, ptr, length);
+      const data = utf8ArrayToString(buffer);
+      this.instance.exports.free_str(ptr);
+      return JSON.parse(data);
+    } else {
+      return [];
     }
   }
 
