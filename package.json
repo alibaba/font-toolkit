@@ -1,6 +1,6 @@
 {
   "name": "fontkit-rs",
-  "version": "0.0.2",
+  "version": "0.0.3-beta.3",
   "description": "Toolkit used to load, match, measure, and render texts",
   "main": "pkg/bundler/index.js",
   "directories": {
@@ -8,7 +8,7 @@
     "test": "tests"
   },
   "files": [
-    "pkg",
+    "pkg/**/*",
     "node.js",
     "Readme.md"
   ],
@@ -16,7 +16,6 @@
   "license": "MIT",
   "types": "./pkg/bundler/index.d.ts",
   "scripts": {
-    "prepack": "cargo build --target wasm32-unknown-unknown --release && wasm-bindgen --target nodejs --out-dir pkg/node --out-name index ./target/wasm32-unknown-unknown/release/fontkit.wasm",
     "build": "wasm-pack build --target nodejs --out-name index --out-dir pkg/node --release && wasm-pack build --target nodejs --out-name index --out-dir pkg/node --release && rm -rf pkg/bundler/package.json",
     "build:wasi": "cargo build --release --target wasm32-wasi && mkdir -p pkg/wasi && cp target/wasm32-wasi/release/fontkit.wasm pkg/wasi/",
     "test": "ava",

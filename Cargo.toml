@@ -15,6 +15,7 @@ ab_glyph_rasterizer = { version = "0.1.5", optional = true }
 arc-swap = "1.5.0"
 brotli-decompressor = { version = "2.3.2", optional = true }
 byteorder = { version = "1.4.3", optional = true }
+dashmap = { version = "5.3.4", optional = true }
 flate2 = { version = "1.0.22", optional = true }
 fontdb = { version = "0.9.1", optional = true }
 infer = "0.7.0"

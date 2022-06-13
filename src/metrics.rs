@@ -1,7 +1,7 @@
 use crate::{Error, Font};
 use std::borrow::Cow;
 use ttf_parser::{GlyphId, Rect};
-use unicode_bidi::BidiInfo;
+use unicode_bidi::{BidiInfo, Level};
 use unicode_normalization::UnicodeNormalization;
 use unicode_script::{Script, ScriptExtension};
 #[cfg(wasm)]
@@ -10,7 +10,8 @@ use wasm_bindgen::prelude::*;
 mod arabic;
 
 impl Font {
-    pub fn measure(&self, text: &str, fallback_font: Option<&Font>) -> Result<TextMetrics, Error> {
+    pub fn measure(&self, text: &str) -> Result<TextMetrics, Error> {
+        self.load()?;
         let f = self.face.load();
         let f = f.as_ref().as_ref().unwrap();
         let font = f.borrow_face();
@@ -22,7 +23,7 @@ impl Font {
             value = Cow::Owned(arabic::fix_arabic_ligatures_char(&*value));
         }
         let bidi = BidiInfo::new(&value, None);
-        let (value, _level) = if bidi.has_rtl() {
+        let (value, levels) = if bidi.has_rtl() {
             let value = bidi
                 .paragraphs
                 .iter()
@@ -46,7 +47,6 @@ impl Font {
         };
         let height = font.height();
         let line_gap = font.line_gap();
-        let mut x_a = 0;
         for char_code in value.nfc() {
             if char_code == '\n' {
                 continue;
@@ -62,17 +62,19 @@ impl Font {
             // };
             let m = self
                 .measure_char(char_code)
-                .or_else(|| fallback_font?.measure_char(char_code))
                 .ok_or(Error::GlyphNotFound { c: char_code })?;
             let kerning = self.kerning(prev, char_code).unwrap_or(0);
-            x_a += kerning as i32;
             prev = char_code;
-            let metrics = PositionedChar { x_a, metrics: m };
-            x_a += metrics.metrics.advanced_x as i32;
+            let metrics = PositionedChar {
+                kerning: kerning as i32,
+                metrics: m,
+            };
             positions.push(metrics);
         }
 
         Ok(TextMetrics {
+            value: value.to_string(),
+            levels,
             positions,
             line_gap,
             content_height: height,
@@ -133,15 +135,63 @@ impl Font {
 }
 
 #[cfg_attr(wasm, wasm_bindgen)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TextMetrics {
-    #[allow(unused)]
+    value: String,
+    levels: Vec<Level>,
     positions: Vec<PositionedChar>,
-    pub content_height: i16,
-    pub ascender: i16,
-    pub line_gap: i16,
-    #[allow(unused)]
+    content_height: i16,
+    ascender: i16,
+    line_gap: i16,
     units: u16,
+}
+
+#[cfg_attr(wasm, wasm_bindgen)]
+impl TextMetrics {
+    pub fn width(&self, font_size: f32, letter_spacing: f32) -> f32 {
+        let factor = font_size / self.units as f32;
+        self.positions.iter().fold(0.0, |current, p| {
+            current
+                + p.kerning as f32 * factor
+                + p.metrics.advanced_x as f32 * factor
+                + letter_spacing
+        })
+    }
+
+    pub fn height(&self, font_size: f32, line_height: Option<f32>) -> f32 {
+        line_height.map(|h| h * font_size).unwrap_or_else(|| {
+            let factor = font_size / self.units as f32;
+            (self.content_height as f32 + self.line_gap as f32) * factor
+        })
+    }
+
+    pub fn content_height(&self) -> i16 {
+        self.content_height
+    }
+
+    pub fn ascender(&self) -> i16 {
+        self.ascender
+    }
+
+    pub fn line_gap(&self) -> i16 {
+        self.line_gap
+    }
+
+    pub fn units(&self) -> u16 {
+        self.units
+    }
+
+    pub fn new() -> TextMetrics {
+        TextMetrics::default()
+    }
+
+    pub fn value(&self) -> &str {
+        self.value.as_str()
+    }
+
+    pub fn levels(&self) -> Vec<Level> {
+        self.levels.clone()
+    }
 }
 
 impl TextMetrics {
@@ -152,8 +202,10 @@ impl TextMetrics {
 
 #[derive(Debug, Clone)]
 pub struct PositionedChar {
+    /// Various metrics data of current character
     pub metrics: CharMetrics,
-    pub x_a: i32, // font size factor
+    /// Kerning between previous and current character
+    pub kerning: i32,
 }
 
 /// Metrics for a single unicode charactor in a certain font

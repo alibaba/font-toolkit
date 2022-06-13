@@ -4,7 +4,6 @@ use ouroboros::self_referencing;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
-use std::io::Cursor;
 #[cfg(not(wasm))]
 use std::path::Path;
 use std::path::PathBuf;
@@ -26,10 +25,21 @@ mod ras;
 mod wasm;
 
 pub use error::Error;
-pub use usvg::PathSegment;
+#[cfg(feature = "metrics")]
+pub use metrics::TextMetrics;
+#[cfg(feature = "ras")]
+pub use ras::*;
 
 #[cfg_attr(wasm, wasm_bindgen)]
 pub struct Width(ParserWidth);
+
+#[cfg_attr(wasm, wasm_bindgen)]
+impl Width {
+    #[cfg_attr(wasm, wasm_bindgen)]
+    pub fn new(width: String) -> Self {
+        width.parse().unwrap()
+    }
+}
 
 impl FromStr for Width {
     type Err = ();
@@ -84,15 +94,19 @@ impl ToString for Width {
     }
 }
 
+impl Default for Width {
+    fn default() -> Self {
+        Width(ParserWidth::Normal)
+    }
+}
+
 #[cfg_attr(wasm, wasm_bindgen)]
 #[cfg_attr(features = "serde", serde::Serialize)]
 #[cfg_attr(features = "serde", serde::Deserialize)]
 #[derive(Clone, Hash, PartialEq, PartialOrd, Eq, Debug, Default)]
 pub struct FontKey {
-    /// Font weight, same as CSS [font-weight](https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight#common_weight_name_mapping)
-    pub weight: u32,
-    /// Italic or not, boolean
-    pub italic: bool,
+    weight: u32,
+    italic: bool,
     stretch: u32,
     family: String,
 }
@@ -109,41 +123,50 @@ impl fmt::Display for FontKey {
 
 #[cfg_attr(wasm, wasm_bindgen)]
 impl FontKey {
-    pub fn new(family: &str, weight: u32, italic: bool, stretch: Width) -> Self {
+    pub fn new(family: String, weight: u32, italic: bool, stretch: Width) -> Self {
         FontKey {
-            family: family.to_string(),
+            family,
             weight,
             italic,
             stretch: stretch.0.to_number() as u32,
         }
     }
 
-    #[inline]
-    fn stretch_enum(&self) -> ParserWidth {
-        match self.stretch {
-            1 => ParserWidth::UltraCondensed,
-            2 => ParserWidth::ExtraCondensed,
-            3 => ParserWidth::Condensed,
-            4 => ParserWidth::SemiCondensed,
-            5 => ParserWidth::Normal,
-            6 => ParserWidth::SemiExpanded,
-            7 => ParserWidth::Expanded,
-            8 => ParserWidth::ExtraExpanded,
-            9 => ParserWidth::UltraExpanded,
-            _ => ParserWidth::Normal,
-        }
-    }
-
-    #[cfg_attr(wasm, wasm_bindgen(getter = stretch))]
     /// Font stretch, same as css [font-stretch](https://developer.mozilla.org/en-US/docs/Web/CSS/font-stretch)
-    pub fn stretch_str(&self) -> String {
-        Width(self.stretch_enum()).to_string()
+    #[cfg_attr(wasm, wasm_bindgen(js_name = "stretch"))]
+    pub fn stretch(&self) -> String {
+        Width::from(self.stretch as u16).to_string()
     }
 
-    #[cfg_attr(wasm, wasm_bindgen(getter))]
     /// Font family string
     pub fn family(&self) -> String {
         self.family.clone()
+    }
+
+    /// Font weight, same as CSS [font-weight](https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight#common_weight_name_mapping)
+    pub fn weight(&self) -> u32 {
+        self.weight
+    }
+
+    /// Italic or not, boolean
+    pub fn italic(&self) -> bool {
+        self.italic
+    }
+
+    pub fn set_weight(&mut self, weight: u32) {
+        self.weight = weight;
+    }
+
+    pub fn set_italic(&mut self, italic: bool) {
+        self.italic = italic;
+    }
+
+    pub fn set_stretch(&mut self, stretch: Width) {
+        self.stretch = stretch.0.to_number() as u32;
+    }
+
+    pub fn set_family(&mut self, family: String) {
+        self.family = family;
     }
 }
 
@@ -162,8 +185,8 @@ pub struct Font {
 }
 
 impl Font {
-    fn key(&self) -> &FontKey {
-        &self.key
+    pub fn key(&self) -> FontKey {
+        self.key.clone()
     }
 
     fn from_buffer(mut buffer: &[u8]) -> Result<Self, Error> {
@@ -172,12 +195,17 @@ impl Font {
         let buffer = match (ty.mime_type(), ty.extension()) {
             #[cfg(feature = "woff2")]
             ("application/woff", "woff2") => {
+                use std::io::Cursor;
+
                 let reader = Cursor::new(&mut buffer);
                 let mut otf_buf = Cursor::new(Vec::new());
                 conv::woff2::convert_woff2_to_otf(reader, &mut otf_buf)?;
                 otf_buf.into_inner()
             }
+            #[cfg(feature = "woff")]
             ("application/woff", "woff") => {
+                use std::io::Cursor;
+
                 let reader = Cursor::new(buffer);
                 let mut otf_buf = Cursor::new(Vec::new());
                 conv::woff::convert_woff_to_otf(reader, &mut otf_buf)?;
@@ -211,11 +239,32 @@ impl Font {
                 }
             })
             .collect::<Vec<_>>();
+        // Select a good name
+        let ascii_name = names
+            .iter()
+            .map(|item| &item.name)
+            .filter(|name| name.is_ascii())
+            .min_by(|n1, n2| match n1.len().cmp(&n2.len()) {
+                std::cmp::Ordering::Equal => n1
+                    .chars()
+                    .filter(|c| *c == '-')
+                    .count()
+                    .cmp(&n2.chars().filter(|c| *c == '-').count()),
+                ordering @ _ => ordering,
+            })
+            .cloned()
+            .map(|name| {
+                if name.starts_with(".") {
+                    (&name[1..]).to_string()
+                } else {
+                    name
+                }
+            });
         let key = FontKey {
             weight: face.borrow_face().weight().to_number() as u32,
             italic: face.borrow_face().is_italic(),
             stretch: face.borrow_face().width().to_number() as u32,
-            family: names[0].name.clone(),
+            family: ascii_name.unwrap_or_else(|| names[0].name.clone()),
         };
         let font = Font {
             names,
@@ -290,23 +339,26 @@ pub struct StaticFace {
 
 #[cfg_attr(wasm, wasm_bindgen)]
 pub struct FontKit {
+    #[cfg(not(dashmap))]
     fonts: Vec<Font>,
+    #[cfg(dashmap)]
+    fonts: dashmap::DashMap<FontKey, Font>,
 }
 
 #[cfg_attr(wasm, wasm_bindgen)]
 impl FontKit {
+    /// Create a font registry
     #[cfg(wasm)]
     #[wasm_bindgen(constructor)]
-    /// Create a font registry
     pub fn new_wasm() -> Self {
         FontKit { fonts: Vec::new() }
     }
 
-    #[cfg(wasm)]
-    #[wasm_bindgen(js_name = "add_font_from_buffer")]
     /// Add a font from a buffer. This will load the font and store the font
     /// buffer in FontKit. Type information is inferred from the magic number
     /// using `infer` crate
+    #[cfg(wasm)]
+    #[wasm_bindgen(js_name = "add_font_from_buffer")]
     pub fn add_font_from_buffer_wasm(&mut self, buffer: Vec<u8>) -> Result<FontKey, JsValue> {
         Ok(self.add_font_from_buffer(buffer)?)
     }
@@ -339,10 +391,22 @@ impl FontKit {
     /// Add a font from a buffer. This will load the font and store the font
     /// buffer in FontKit. Type information is inferred from the magic number
     /// using `infer` crate
+    #[cfg(not(dashmap))]
     pub fn add_font_from_buffer(&mut self, buffer: Vec<u8>) -> Result<FontKey, Error> {
         let font = Font::from_buffer(&buffer)?;
         let key = font.key().clone();
         self.fonts.push(font);
+        Ok(key)
+    }
+
+    /// Add a font from a buffer. This will load the font and store the font
+    /// buffer in FontKit. Type information is inferred from the magic number
+    /// using `infer` crate
+    #[cfg(dashmap)]
+    pub fn add_font_from_buffer(&self, buffer: Vec<u8>) -> Result<FontKey, Error> {
+        let font = Font::from_buffer(&buffer)?;
+        let key = font.key().clone();
+        self.fonts.insert(key, font);
         Ok(key)
     }
 
@@ -410,11 +474,11 @@ impl FontKit {
                 filters.push(Filter::Weight(weight))
             }
         }
-        let mut search_results = self
-            .fonts
-            .iter()
-            .map(|item| (item.key(), item))
-            .collect::<HashMap<_, _>>();
+        #[cfg(not(dashmap))]
+        let search_results = self.fonts.iter().map(|item| (item.key(), item));
+        #[cfg(dashmap)]
+        let search_results = self.fonts.iter().map(|item| item.multi());
+        let mut search_results = search_results.collect::<HashMap<_, _>>();
         for filter in filters {
             let mut s = search_results.clone();
             match filter {
@@ -523,7 +587,7 @@ pub unsafe extern "C" fn font_for_face(
     let fontkit = &mut *fontkit;
     let font_face = std::slice::from_raw_parts(font_face, len);
     let font_face = std::str::from_utf8(font_face).unwrap();
-    let key = FontKey::new(font_face, weight, italic, stretch.into());
+    let key = FontKey::new(font_face.to_string(), weight, italic, stretch.into());
     let font = fontkit.query(&key);
     match font {
         Some(font) => font as *const _ as *const u8,
