@@ -1,3 +1,5 @@
+#![feature(doc_auto_cfg)]
+
 use arc_swap::ArcSwap;
 use ouroboros::self_referencing;
 #[cfg(not(wasm))]
@@ -26,7 +28,7 @@ mod wasm;
 
 pub use error::Error;
 #[cfg(feature = "metrics")]
-pub use metrics::TextMetrics;
+pub use metrics::*;
 #[cfg(feature = "ras")]
 pub use ras::*;
 
@@ -343,6 +345,7 @@ pub struct FontKit {
     fonts: Vec<Font>,
     #[cfg(dashmap)]
     fonts: dashmap::DashMap<FontKey, Font>,
+    fallback_font_key: Option<Box<dyn Fn(FontKey) -> FontKey>>,
 }
 
 #[cfg_attr(wasm, wasm_bindgen)]
@@ -351,7 +354,10 @@ impl FontKit {
     #[cfg(wasm)]
     #[wasm_bindgen(constructor)]
     pub fn new_wasm() -> Self {
-        FontKit { fonts: Vec::new() }
+        FontKit {
+            fonts: Vec::new(),
+            fallback_font_key: None,
+        }
     }
 
     /// Add a font from a buffer. This will load the font and store the font
@@ -375,6 +381,13 @@ impl FontKit {
     pub fn len(&self) -> usize {
         self.fonts.len()
     }
+
+    /// Setup a font as fallback. When measure fails, FontKit will use this
+    /// fallback to measure, if possible
+    #[cfg(not(wasm))]
+    pub fn set_fallback(&mut self, font_key: Option<impl Fn(FontKey) -> FontKey + 'static>) {
+        self.fallback_font_key = font_key.map(|f| Box::new(f) as _);
+    }
 }
 
 impl FontKit {
@@ -385,7 +398,10 @@ impl FontKit {
         // wasm_logger::init(wasm_logger::Config::new(log::Level::Info));
         // #[cfg(wasm)]
         // console_error_panic_hook::set_once();
-        FontKit { fonts: Vec::new() }
+        FontKit {
+            fonts: Vec::new(),
+            fallback_font_key: None,
+        }
     }
 
     /// Add a font from a buffer. This will load the font and store the font
@@ -496,6 +512,41 @@ impl FontKit {
             }
         }
         None
+    }
+
+    #[cfg(feature = "metrics")]
+    pub fn measure(&self, font_key: &FontKey, text: &str) -> Option<TextMetrics> {
+        match self
+            .query(&font_key)
+            .and_then(|font| font.measure(text).ok())
+        {
+            Some(mut metrics) => {
+                let has_missing = metrics.positions.iter().any(|c| c.metrics.missing);
+                if has_missing {
+                    if let Some(font) = self
+                        .fallback_font_key
+                        .as_ref()
+                        .and_then(|key| self.query(&(key)(font_key.clone())))
+                    {
+                        for pos in &mut metrics.positions {
+                            if pos.metrics.missing {
+                                if let Some(new_metrics) = font.measure_char(pos.metrics.c) {
+                                    pos.metrics = new_metrics;
+                                }
+                            }
+                        }
+                    }
+                }
+                Some(metrics)
+            }
+            None => {
+                let font = self
+                    .fallback_font_key
+                    .as_ref()
+                    .and_then(|key| self.query(&(key)(font_key.clone())))?;
+                font.measure(text).ok()
+            }
+        }
     }
 }
 

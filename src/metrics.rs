@@ -1,4 +1,5 @@
 use crate::{Error, Font};
+pub use compose::*;
 use std::borrow::Cow;
 use ttf_parser::{GlyphId, Rect};
 use unicode_bidi::{BidiInfo, Level};
@@ -8,9 +9,13 @@ use unicode_script::{Script, ScriptExtension};
 use wasm_bindgen::prelude::*;
 
 mod arabic;
+mod compose;
 
 impl Font {
+    /// Measure a string slice. If certain character is missing, the related
+    /// [`CharMetrics`] 's `missing` field will be `true`
     pub fn measure(&self, text: &str) -> Result<TextMetrics, Error> {
+        #[cfg(not(wasm))]
         self.load()?;
         let f = self.face.load();
         let f = f.as_ref().as_ref().unwrap();
@@ -60,9 +65,21 @@ impl Font {
             // } else {
             //     text.direction
             // };
-            let m = self
-                .measure_char(char_code)
-                .ok_or(Error::GlyphNotFound { c: char_code })?;
+            let m = self.measure_char(char_code).unwrap_or_else(|| CharMetrics {
+                bbox: Rect {
+                    x_min: 0,
+                    y_min: 0,
+                    x_max: 1,
+                    y_max: 1,
+                },
+                missing: true,
+                c: char_code,
+                glyph_id: GlyphId(0),
+                advanced_x: 0,
+                lsb: 0,
+                units: 0.0,
+                height,
+            });
             let kerning = self.kerning(prev, char_code).unwrap_or(0);
             prev = char_code;
             let metrics = PositionedChar {
@@ -107,6 +124,7 @@ impl Font {
             lsb: f.glyph_hor_side_bearing(glyph_id).unwrap_or(0),
             units,
             height,
+            missing: false,
         })
     }
 
@@ -139,7 +157,7 @@ impl Font {
 pub struct TextMetrics {
     value: String,
     levels: Vec<Level>,
-    positions: Vec<PositionedChar>,
+    pub(crate) positions: Vec<PositionedChar>,
     content_height: i16,
     ascender: i16,
     line_gap: i16,
@@ -156,6 +174,16 @@ impl TextMetrics {
                 + p.metrics.advanced_x as f32 * factor
                 + letter_spacing
         })
+    }
+
+    pub fn width_trim_start(&self, font_size: f32, letter_spacing: f32) -> f32 {
+        self.width(font_size, letter_spacing)
+            - if self.positions[0].metrics.c == ' ' {
+                self.positions[0].metrics.advanced_x as f32 / self.positions[0].metrics.units
+                    * font_size
+            } else {
+                0.0
+            }
     }
 
     pub fn height(&self, font_size: f32, line_height: Option<f32>) -> f32 {
@@ -185,10 +213,17 @@ impl TextMetrics {
         TextMetrics::default()
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn value(&self) -> &str {
         self.value.as_str()
     }
 
+    #[cfg(target_arch = "wasm32")]
+    pub fn value(&self) -> String {
+        self.value.clone()
+    }
+
+    #[cfg(not(wasm))]
     pub fn levels(&self) -> Vec<Level> {
         self.levels.clone()
     }
@@ -200,6 +235,7 @@ impl TextMetrics {
     }
 }
 
+#[cfg_attr(wasm, wasm_bindgen)]
 #[derive(Debug, Clone)]
 pub struct PositionedChar {
     /// Various metrics data of current character
@@ -209,13 +245,15 @@ pub struct PositionedChar {
 }
 
 /// Metrics for a single unicode charactor in a certain font
-#[derive(Debug, Clone)]
+#[cfg_attr(wasm, wasm_bindgen)]
+#[derive(Debug, Clone, Copy)]
 pub struct CharMetrics {
+    pub(crate) bbox: Rect,
+    pub(crate) glyph_id: GlyphId,
     pub c: char,
-    pub glyph_id: GlyphId,
     pub advanced_x: u16,
     pub lsb: i16,
-    pub bbox: Rect,
     pub units: f32,
     pub height: i16,
+    pub missing: bool,
 }
