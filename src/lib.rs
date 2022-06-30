@@ -345,7 +345,7 @@ pub struct FontKit {
     fonts: Vec<Font>,
     #[cfg(dashmap)]
     fonts: dashmap::DashMap<FontKey, Font>,
-    fallback_font_key: Option<Box<dyn Fn(FontKey) -> FontKey>>,
+    fallback_font_key: Option<Box<dyn Fn(FontKey) -> FontKey + Send + Sync>>,
 }
 
 #[cfg_attr(wasm, wasm_bindgen)]
@@ -385,7 +385,10 @@ impl FontKit {
     /// Setup a font as fallback. When measure fails, FontKit will use this
     /// fallback to measure, if possible
     #[cfg(not(wasm))]
-    pub fn set_fallback(&mut self, font_key: Option<impl Fn(FontKey) -> FontKey + 'static>) {
+    pub fn set_fallback(
+        &mut self,
+        font_key: Option<impl Fn(FontKey) -> FontKey + Send + Sync + 'static>,
+    ) {
         self.fallback_font_key = font_key.map(|f| Box::new(f) as _);
     }
 }
