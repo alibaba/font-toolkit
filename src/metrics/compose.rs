@@ -13,13 +13,13 @@ pub struct Line<T> {
 }
 
 impl<T> Line<T> {
-    fn width(&self) -> f32 {
+    pub fn width(&self) -> f32 {
         self.spans
             .iter()
             .fold(0.0, |current, span| current + span.width())
     }
 
-    fn height(&self) -> f32 {
+    pub fn height(&self) -> f32 {
         self.spans
             .iter()
             .fold(0.0, |current, span| current.max(span.height()))
