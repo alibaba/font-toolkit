@@ -391,6 +391,41 @@ impl FontKit {
     ) {
         self.fallback_font_key = font_key.map(|f| Box::new(f) as _);
     }
+
+    #[cfg(feature = "metrics")]
+    pub fn measure(&self, font_key: &FontKey, text: &str) -> Option<TextMetrics> {
+        match self
+            .query(&font_key)
+            .and_then(|font| font.measure(text).ok())
+        {
+            Some(mut metrics) => {
+                let has_missing = metrics.positions.iter().any(|c| c.metrics.missing);
+                if has_missing {
+                    if let Some(font) = self
+                        .fallback_font_key
+                        .as_ref()
+                        .and_then(|key| self.query(&(key)(font_key.clone())))
+                    {
+                        for pos in &mut metrics.positions {
+                            if pos.metrics.missing {
+                                if let Some(new_metrics) = font.measure_char(pos.metrics.c) {
+                                    pos.metrics = new_metrics;
+                                }
+                            }
+                        }
+                    }
+                }
+                Some(metrics)
+            }
+            None => {
+                let font = self
+                    .fallback_font_key
+                    .as_ref()
+                    .and_then(|key| self.query(&(key)(font_key.clone())))?;
+                font.measure(text).ok()
+            }
+        }
+    }
 }
 
 impl FontKit {
@@ -515,41 +550,6 @@ impl FontKit {
             }
         }
         None
-    }
-
-    #[cfg(feature = "metrics")]
-    pub fn measure(&self, font_key: &FontKey, text: &str) -> Option<TextMetrics> {
-        match self
-            .query(&font_key)
-            .and_then(|font| font.measure(text).ok())
-        {
-            Some(mut metrics) => {
-                let has_missing = metrics.positions.iter().any(|c| c.metrics.missing);
-                if has_missing {
-                    if let Some(font) = self
-                        .fallback_font_key
-                        .as_ref()
-                        .and_then(|key| self.query(&(key)(font_key.clone())))
-                    {
-                        for pos in &mut metrics.positions {
-                            if pos.metrics.missing {
-                                if let Some(new_metrics) = font.measure_char(pos.metrics.c) {
-                                    pos.metrics = new_metrics;
-                                }
-                            }
-                        }
-                    }
-                }
-                Some(metrics)
-            }
-            None => {
-                let font = self
-                    .fallback_font_key
-                    .as_ref()
-                    .and_then(|key| self.query(&(key)(font_key.clone())))?;
-                font.measure(text).ok()
-            }
-        }
     }
 }
 
