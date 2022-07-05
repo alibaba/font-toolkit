@@ -406,10 +406,15 @@ impl FontKit {
                         .as_ref()
                         .and_then(|key| self.query(&(key)(font_key.clone())))
                     {
-                        for pos in &mut metrics.positions {
-                            if pos.metrics.missing {
-                                if let Some(new_metrics) = font.measure_char(pos.metrics.c) {
-                                    pos.metrics = new_metrics;
+                        if let Ok(new_metrics) = font.measure(text) {
+                            for (old, new) in metrics
+                                .positions
+                                .iter_mut()
+                                .zip(new_metrics.positions.into_iter())
+                            {
+                                if old.metrics.missing {
+                                    old.metrics = new.metrics;
+                                    old.kerning = new.kerning;
                                 }
                             }
                         }

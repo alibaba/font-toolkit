@@ -101,7 +101,7 @@ impl Font {
     }
 
     /// Measure the metrics of a single unicode charactor
-    pub fn measure_char(&self, c: char) -> Option<CharMetrics> {
+    pub(crate) fn measure_char(&self, c: char) -> Option<CharMetrics> {
         let f = self.face.load();
         let f = f.as_ref().as_ref()?;
         let f = f.borrow_face();
