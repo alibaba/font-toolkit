@@ -670,7 +670,7 @@ pub unsafe extern "C" fn path_for_font(font: *const u8) -> *const u8 {
 #[cfg(not(wasm))]
 #[doc(hidden)]
 #[no_mangle]
-pub fn alloc() -> *mut u8 {
+pub fn fontkit_alloc() -> *mut u8 {
     let v = vec![0_u8; 1024];
     let (ptr, _) = into_raw(v);
     ptr
@@ -688,7 +688,7 @@ fn into_raw<T>(mut v: Vec<T>) -> (*mut T, usize) {
 #[cfg(not(wasm))]
 #[doc(hidden)]
 #[no_mangle]
-pub unsafe fn mfree(ptr: *mut u8) {
+pub unsafe fn fontkit_mfree(ptr: *mut u8) {
     let _ = Vec::from_raw_parts(ptr, 1024, 1024);
 }
 
@@ -702,7 +702,7 @@ pub unsafe fn free_fontkit(ptr: *mut FontKit) {
 #[cfg(not(wasm))]
 #[doc(hidden)]
 #[no_mangle]
-pub unsafe fn free_str(ptr: *mut u8) {
+pub unsafe fn free_fontkit_str(ptr: *mut u8) {
     if let Some(len) = ALLOCS.with(|map| map.borrow_mut().remove(&(ptr as u64))) {
         let _ = Vec::from_raw_parts(ptr, len, len);
     }
@@ -711,7 +711,7 @@ pub unsafe fn free_str(ptr: *mut u8) {
 #[cfg(not(wasm))]
 #[doc(hidden)]
 #[no_mangle]
-pub fn str_length(ptr: *const u8) -> u32 {
+pub fn fontkit_str_length(ptr: *const u8) -> u32 {
     ALLOCS.with(|map| {
         map.borrow()
             .get(&(ptr as u64))

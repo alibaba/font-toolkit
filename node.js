@@ -70,7 +70,7 @@ export class FontKitIndex {
   }
 
   font(fontFamily, weight = 400, isItalic = false, stretch = FontStretch.Normal) {
-    const pInput = this.instance.exports.alloc();
+    const pInput = this.instance.exports.fontkit_alloc();
     const encoder = new TextEncoder();
     const buffer = encoder.encode(fontFamily);
     const view = new Uint8Array(this.instance.exports.memory.buffer, pInput, buffer.length);
@@ -83,7 +83,7 @@ export class FontKitIndex {
       isItalic,
       stretch,
     );
-    this.instance.exports.mfree(pInput);
+    this.instance.exports.fontkit_mfree(pInput);
     if (font === 0) return undefined;
     else return new Font(this.instance, font);
   }
@@ -96,11 +96,11 @@ export class FontKitIndex {
         if (lstatSync(path).isDirectory()) return;
         const encoder = new TextEncoder();
         const buffer = encoder.encode(path);
-        const pInput = instance.exports.alloc();
+        const pInput = instance.exports.fontkit_alloc();
         const view = new Uint8Array(instance.exports.memory.buffer, pInput, buffer.length);
         encode(view, buffer);
         instance.exports.add_search_path(ptr, pInput, path.length);
-        instance.exports.mfree(pInput);
+        instance.exports.fontkit_mfree(pInput);
       });
     } catch (e) {
       // Ignore
@@ -109,11 +109,11 @@ export class FontKitIndex {
 
   list() {
     const ptr = this.instance.exports.list_all_font(this.fontkit_ptr);
-    const length = this.instance.exports.str_length(ptr);
+    const length = this.instance.exports.fontkit_str_length(ptr);
     if (length) {
       const buffer = new Uint8Array(this.instance.exports.memory.buffer, ptr, length);
       const data = utf8ArrayToString(buffer);
-      this.instance.exports.free_str(ptr);
+      this.instance.exports.free_fontkit_str(ptr);
       return JSON.parse(data);
     } else {
       return [];
@@ -135,11 +135,11 @@ export class Font {
 
   path() {
     const ptr = this.instance.exports.path_for_font(this.ptr);
-    const length = this.instance.exports.str_length(ptr);
+    const length = this.instance.exports.fontkit_str_length(ptr);
     if (length) {
       const buffer = new Uint8Array(this.instance.exports.memory.buffer, ptr, length);
       const path = utf8ArrayToString(buffer);
-      this.instance.exports.free_str(ptr);
+      this.instance.exports.free_fontkit_str(ptr);
       return path;
     } else {
       return '';
