@@ -209,8 +209,11 @@ impl TextMetrics {
         self.units
     }
 
-    pub fn new() -> TextMetrics {
-        TextMetrics::default()
+    pub fn new(value: String) -> TextMetrics {
+        TextMetrics {
+            value,
+            ..TextMetrics::default()
+        }
     }
 
     #[cfg(not(target_arch = "wasm32"))]

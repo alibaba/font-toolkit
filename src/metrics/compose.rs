@@ -39,7 +39,6 @@ impl<T> Line<T> {
 
 #[derive(Debug, Clone, Default)]
 pub struct Span<T> {
-    pub value: String,
     pub font_key: FontKey,
     pub letter_spacing: f32,
     pub line_height: Option<f32>,
@@ -109,7 +108,7 @@ where
                     span.swallow_leading_space = false;
                     if span.broke_from_prev {
                         if let Some(last_span) = last_line.last_mut() {
-                            last_span.value.push_str(&span.value);
+                            last_span.metrics.value.push_str(&span.metrics.value);
                             last_span
                                 .metrics
                                 .positions
@@ -220,8 +219,6 @@ where
                     while span.metrics.positions.get(real_index).unwrap().metrics.c == ' ' {
                         real_index += 1;
                     }
-                    let seg_last_metric =
-                        &span.metrics.positions.get(real_index + count - 1).unwrap();
                     let factor = span.size / span.metrics.units() as f32;
                     let acc_seg_width = (0..(real_index + count))
                         .map(|index| span.metrics.positions.get(index).unwrap())
@@ -230,10 +227,7 @@ where
                                 + p.kerning as f32 * factor
                                 + p.metrics.advanced_x as f32 * factor
                                 + span.letter_spacing
-                        })
-                        + seg_last_metric.metrics.advanced_x as f32 * span.size
-                            / seg_last_metric.metrics.units as f32
-                        + span.letter_spacing;
+                        });
                     if current_line_width + acc_seg_width <= width {
                         real_index += count;
                     } else {
@@ -251,14 +245,17 @@ where
                 let mut chars = fixed_value.nfc().collect::<Vec<_>>();
                 log::trace!("real_index {} index {}, {:?}", real_index, index, chars);
                 let new_chars = chars.split_off(real_index);
-                span.value = chars.into_iter().collect::<String>();
-                new_span.value = new_chars.into_iter().collect::<String>();
-                if !span.value.is_empty() {
+                span.metrics.value = chars.into_iter().collect::<String>();
+                new_span.metrics.value = new_chars.into_iter().collect::<String>();
+                if !span.metrics.value.is_empty() {
                     current_line.spans.push(span.clone());
                 }
-                assert_eq!(span.value.nfc().count(), span.metrics.positions.len());
                 assert_eq!(
-                    new_span.value.nfc().count(),
+                    span.metrics.value.nfc().count(),
+                    span.metrics.positions.len()
+                );
+                assert_eq!(
+                    new_span.metrics.value.nfc().count(),
                     new_span.metrics.positions.len()
                 );
                 // Create a new line
@@ -275,7 +272,7 @@ where
                     spans: vec![new_span],
                 };
                 // Check for swallowed leading space
-                if new_line.spans[0].value.starts_with(" ") {
+                if new_line.spans[0].metrics.value.starts_with(" ") {
                     new_line.spans[0].swallow_leading_space = true;
                 }
                 for span in line.spans.into_iter().skip(1) {
@@ -305,7 +302,7 @@ where
             .map(|line| {
                 line.spans
                     .iter()
-                    .map(|span| span.value.clone())
+                    .map(|span| span.metrics.value.clone())
                     .collect::<Vec<_>>()
                     .join("")
             })
