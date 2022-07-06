@@ -84,16 +84,25 @@ fn is_in_behind_set(target: &u32) -> bool {
 
 #[inline]
 fn need_ligatures(target: u32) -> bool {
-    (0x62..=0x64A).contains(&target)
+    if target >= 0x621 && target <= 0x64A {
+        true
+    } else {
+        false
+    }
 }
 
 /// we think zero width char will not influence ligatures
 #[inline]
 fn zero_width_char(target: u32) -> bool {
-    (0x610..=0x61A).contains(&target)
-        || (0x64B..=0x65F).contains(&target)
+    if target >= 0x610 && target <= 0x61A
+        || target >= 0x64B && target <= 0x65F
         || target >= 0x670
-        || (0x6D6..=0x6ED).contains(&target)
+        || target >= 0x6D6 && target <= 0x6ED
+    {
+        true
+    } else {
+        false
+    }
 }
 
 fn do_ligatures(curr: u32, front: Option<char>, behind: Option<char>) -> u32 {
