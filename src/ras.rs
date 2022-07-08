@@ -10,6 +10,7 @@ use usvg::PathData;
 impl Font {
     /// Output the outline instructions of a glyph
     pub fn outline(&self, c: char) -> Option<(Glyph, Outline)> {
+        #[cfg(not(wasm))]
         self.load().ok()?;
         let mut builder = PathBuilder::new();
         let f = self.face.load();
@@ -39,6 +40,7 @@ impl Font {
         if !self.has_glyph(c) {
             return None;
         }
+        #[cfg(not(wasm))]
         self.load().ok()?;
 
         let f = self.face.load();

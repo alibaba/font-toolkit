@@ -216,7 +216,13 @@ where
                     if count == 0 {
                         continue;
                     }
-                    while span.metrics.positions.get(real_index).unwrap().metrics.c == ' ' {
+                    let span_values = seg.nfc().collect::<Vec<_>>();
+                    while span.metrics.positions()[real_index].metrics.c == ' '
+                        && span_values
+                            .get(real_index)
+                            .map(|c| *c != ' ')
+                            .unwrap_or(true)
+                    {
                         real_index += 1;
                     }
                     let factor = span.size / span.metrics.units() as f32;
