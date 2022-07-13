@@ -196,7 +196,7 @@ impl Font {
         let ty = infer::get(buffer).ok_or(Error::UnrecognizedBuffer)?;
         let buffer = match (ty.mime_type(), ty.extension()) {
             #[cfg(feature = "woff2")]
-            ("application/woff", "woff2") => {
+            ("application/font-woff", "woff2") => {
                 use std::io::Cursor;
 
                 let reader = Cursor::new(&mut buffer);
@@ -205,7 +205,7 @@ impl Font {
                 otf_buf.into_inner()
             }
             #[cfg(feature = "woff")]
-            ("application/woff", "woff") => {
+            ("application/font-woff", "woff") => {
                 use std::io::Cursor;
 
                 let reader = Cursor::new(buffer);
@@ -351,9 +351,8 @@ pub struct FontKit {
 #[cfg_attr(wasm, wasm_bindgen)]
 impl FontKit {
     /// Create a font registry
-    #[cfg(wasm)]
-    #[wasm_bindgen(constructor)]
-    pub fn new_wasm() -> Self {
+    #[cfg_attr(wasm, wasm_bindgen(constructor))]
+    pub fn new() -> Self {
         FontKit {
             fonts: Vec::new(),
             fallback_font_key: None,
@@ -434,19 +433,6 @@ impl FontKit {
 }
 
 impl FontKit {
-    /// Create a font registry
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-        // #[cfg(wasm)]
-        // wasm_logger::init(wasm_logger::Config::new(log::Level::Info));
-        // #[cfg(wasm)]
-        // console_error_panic_hook::set_once();
-        FontKit {
-            fonts: Vec::new(),
-            fallback_font_key: None,
-        }
-    }
-
     /// Add a font from a buffer. This will load the font and store the font
     /// buffer in FontKit. Type information is inferred from the magic number
     /// using `infer` crate
