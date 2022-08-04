@@ -295,11 +295,13 @@ where
     }
 
     pub fn valid(&self) -> bool {
-        !self.lines.iter().any(|line| {
+        let metrics_empty = self.lines.iter().any(|line| {
             line.spans
                 .iter()
                 .any(|span| span.metrics.positions.is_empty())
-        })
+        });
+        let content_empty = self.value_string().is_empty();
+        !metrics_empty || content_empty
     }
 
     pub fn value_string(&self) -> String {
