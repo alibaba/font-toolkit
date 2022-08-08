@@ -196,14 +196,7 @@ impl Font {
         let ty = infer::get(buffer).ok_or(Error::UnrecognizedBuffer)?;
         let buffer = match (ty.mime_type(), ty.extension()) {
             #[cfg(feature = "woff2")]
-            ("application/font-woff", "woff2") => {
-                use std::io::Cursor;
-
-                let reader = Cursor::new(&mut buffer);
-                let mut otf_buf = Cursor::new(Vec::new());
-                conv::woff2::convert_woff2_to_otf(reader, &mut otf_buf)?;
-                otf_buf.into_inner()
-            }
+            ("application/font-woff", "woff2") => woff2::convert_woff2_to_ttf(&mut buffer)?,
             #[cfg(feature = "woff")]
             ("application/font-woff", "woff") => {
                 use std::io::Cursor;

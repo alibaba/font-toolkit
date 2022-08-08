@@ -15,6 +15,9 @@ pub enum Error {
     WalkDir(#[from] walkdir::Error),
     #[error("Glyph {c} not found in font")]
     GlyphNotFound { c: char },
+    #[cfg(feature = "woff2")]
+    #[error(transparent)]
+    Woff2(#[from] woff2::decode::DecodeError),
 }
 
 #[cfg(node)]
