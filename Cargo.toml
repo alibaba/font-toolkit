@@ -66,3 +66,6 @@ ras = [
 
 [build-dependencies]
 cfg_aliases = "0.1.1"
+
+[patch.crates-io]
+woff2 = { git = "https://github.com/zimond/woff2-rs", rev = "d3d93ea" }
