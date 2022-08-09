@@ -230,6 +230,26 @@ impl TextMetrics {
     pub fn levels(&self) -> Vec<Level> {
         self.levels.clone()
     }
+
+    pub(crate) fn trim_start(&mut self) {
+        let trim = self.value.trim_start().to_string();
+        let mut len = self.value.len() - trim.len();
+        if len == 0 {
+            return;
+        }
+        self.value = trim;
+        while len > 0 {
+            self.levels.remove(0);
+            self.positions.remove(0);
+            len -= 1;
+        }
+    }
+
+    pub(crate) fn pop(&mut self) {
+        self.value.pop();
+        self.levels.pop();
+        self.positions.pop();
+    }
 }
 
 impl TextMetrics {

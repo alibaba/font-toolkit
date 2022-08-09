@@ -1,4 +1,4 @@
-#![feature(doc_auto_cfg)]
+#![feature(doc_auto_cfg, drain_filter)]
 
 use arc_swap::ArcSwap;
 use ouroboros::self_referencing;

@@ -323,4 +323,39 @@ where
             .iter()
             .fold(0, |current, line| line.spans.len() + current)
     }
+
+    pub fn ellipsis(&mut self, width: f32, height: f32, postfix: TextMetrics) {
+        let mut lines_height = 0.0;
+        self.lines = self
+            .lines
+            .clone()
+            .drain_filter(|line| {
+                lines_height += line.height();
+                lines_height <= height
+            })
+            .collect();
+
+        for line in &mut self.lines {
+            line.hard_break = true;
+            if let Some(ref mut first) = line.spans.first_mut() {
+                first.metrics.trim_start();
+            }
+        }
+
+        let mut ellipsis_span = self.lines[0].spans[0].clone();
+        if let Some(ref mut line) = self.lines.last_mut() {
+            while line.width() + postfix.width(ellipsis_span.size, ellipsis_span.letter_spacing)
+                > width
+                && line.width() > 0.0
+            {
+                let span = line.spans.last_mut().unwrap();
+                span.metrics.pop();
+                if span.metrics.positions.is_empty() {
+                    line.spans.pop();
+                }
+            }
+            ellipsis_span.metrics = postfix;
+            line.spans.push(ellipsis_span);
+        }
+    }
 }
