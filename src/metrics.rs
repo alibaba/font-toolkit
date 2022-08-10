@@ -52,7 +52,12 @@ impl Font {
         };
         let height = font.height();
         let line_gap = font.line_gap();
-        for char_code in value.nfc() {
+        for (char_code, level) in value.nfc().zip(
+            levels
+                .into_iter()
+                .map(|l| Some(l))
+                .chain(std::iter::repeat(None)),
+        ) {
             if char_code == '\n' {
                 continue;
             }
@@ -85,13 +90,13 @@ impl Font {
             let metrics = PositionedChar {
                 kerning: kerning as i32,
                 metrics: m,
+                level,
             };
             positions.push(metrics);
         }
 
         Ok(TextMetrics {
             value: value.to_string(),
-            levels,
             positions,
             line_gap,
             content_height: height,
@@ -156,7 +161,6 @@ impl Font {
 #[derive(Debug, Clone, Default)]
 pub struct TextMetrics {
     value: String,
-    levels: Vec<Level>,
     pub(crate) positions: Vec<PositionedChar>,
     content_height: i16,
     ascender: i16,
@@ -226,20 +230,14 @@ impl TextMetrics {
         self.value.clone()
     }
 
-    #[cfg(not(wasm))]
-    pub fn levels(&self) -> Vec<Level> {
-        self.levels.clone()
-    }
-
     pub(crate) fn trim_start(&mut self) {
         let trim = self.value.trim_start().to_string();
-        let mut len = self.value.len() - trim.len();
+        let mut len = self.value.nfc().count() - trim.nfc().count();
         if len == 0 {
             return;
         }
         self.value = trim;
         while len > 0 {
-            self.levels.remove(0);
             self.positions.remove(0);
             len -= 1;
         }
@@ -247,7 +245,6 @@ impl TextMetrics {
 
     pub(crate) fn pop(&mut self) {
         self.value.pop();
-        self.levels.pop();
         self.positions.pop();
     }
 }
@@ -265,6 +262,7 @@ pub struct PositionedChar {
     pub metrics: CharMetrics,
     /// Kerning between previous and current character
     pub kerning: i32,
+    pub(crate) level: Option<Level>,
 }
 
 /// Metrics for a single unicode charactor in a certain font

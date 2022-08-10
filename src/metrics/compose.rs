@@ -125,8 +125,7 @@ where
     }
 
     pub fn wrap_text(&mut self, width: f32) {
-        let lines = std::mem::replace(&mut self.lines, Vec::new());
-        let mut lines = lines.into_iter().collect::<VecDeque<_>>();
+        let mut lines = self.lines.clone().into_iter().collect::<VecDeque<_>>();
         let mut result = vec![];
         let mut current_line = Line {
             hard_break: true,
@@ -134,6 +133,7 @@ where
         };
         let mut current_line_width = 0.0;
         let mut is_first_line = true;
+        let mut failed_with_no_acception = false;
         while let Some(mut line) = lines.pop_front() {
             if line.hard_break && !is_first_line {
                 // Start a new line
@@ -148,7 +148,7 @@ where
             }
             is_first_line = false;
             let line_width = line.width();
-            if line_width + current_line_width <= width {
+            if width - (line_width + current_line_width) >= -0.01 {
                 // Current line fits, push all of its spans into current line
                 current_line_width += line_width;
                 current_line.spans.append(&mut line.spans);
@@ -179,6 +179,16 @@ where
                 // put all spans before this into the line
                 let mut approved_spans = line.spans.split_off(index);
                 std::mem::swap(&mut approved_spans, &mut line.spans);
+                if approved_spans.is_empty() {
+                    if failed_with_no_acception {
+                        // Failed to fit a span twice, fail
+                        return;
+                    } else {
+                        failed_with_no_acception = true;
+                    }
+                } else {
+                    failed_with_no_acception = false;
+                }
                 current_line.spans.append(&mut approved_spans);
                 let mut dropped_metrics = vec![];
                 let span = &mut line.spans[0];
@@ -291,6 +301,9 @@ where
         if !current_line.spans.is_empty() {
             result.push(current_line);
         }
+        if result.is_empty() || result[0].spans.is_empty() {
+            return;
+        }
         self.lines = result;
     }
 
@@ -325,13 +338,18 @@ where
     }
 
     pub fn ellipsis(&mut self, width: f32, height: f32, postfix: TextMetrics) {
+        // No need to do ellipsis
+        if height - self.height() >= -0.01 && width - self.width() >= -0.01 {
+            return;
+        }
+        let mut ellipsis_span = self.lines[0].spans[0].clone();
         let mut lines_height = 0.0;
         self.lines = self
             .lines
             .clone()
             .drain_filter(|line| {
                 lines_height += line.height();
-                lines_height <= height
+                height - lines_height >= -0.01
             })
             .collect();
 
@@ -342,10 +360,10 @@ where
             }
         }
 
-        let mut ellipsis_span = self.lines[0].spans[0].clone();
         if let Some(ref mut line) = self.lines.last_mut() {
             while line.width() + postfix.width(ellipsis_span.size, ellipsis_span.letter_spacing)
-                > width
+                - width
+                >= 0.01
                 && line.width() > 0.0
             {
                 let span = line.spans.last_mut().unwrap();
