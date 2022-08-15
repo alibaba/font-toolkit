@@ -181,6 +181,9 @@ impl TextMetrics {
     }
 
     pub fn width_trim_start(&self, font_size: f32, letter_spacing: f32) -> f32 {
+        if self.positions.is_empty() {
+            return 0.0;
+        }
         self.width(font_size, letter_spacing)
             - if self.positions[0].metrics.c == ' ' {
                 self.positions[0].metrics.advanced_x as f32 / self.positions[0].metrics.units

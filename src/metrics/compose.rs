@@ -227,16 +227,17 @@ where
                         continue;
                     }
                     let span_values = seg.nfc().collect::<Vec<_>>();
-                    while span.metrics.positions()[real_index].metrics.c == ' '
+                    let mut current_real_index = real_index;
+                    while span.metrics.positions()[current_real_index].metrics.c == ' '
                         && span_values
-                            .get(real_index)
+                            .get(current_real_index)
                             .map(|c| *c != ' ')
                             .unwrap_or(true)
                     {
-                        real_index += 1;
+                        current_real_index += 1;
                     }
                     let factor = span.size / span.metrics.units() as f32;
-                    let acc_seg_width = (0..(real_index + count))
+                    let acc_seg_width = (0..(current_real_index + count))
                         .map(|index| span.metrics.positions.get(index).unwrap())
                         .fold(0.0, |current, p| {
                             current
@@ -245,7 +246,7 @@ where
                                 + span.letter_spacing
                         });
                     if current_line_width + acc_seg_width <= width {
-                        real_index += count;
+                        real_index = current_real_index + count;
                     } else {
                         break;
                     }
@@ -308,13 +309,11 @@ where
     }
 
     pub fn valid(&self) -> bool {
-        let metrics_empty = self.lines.iter().any(|line| {
+        !self.lines.iter().any(|line| {
             line.spans
                 .iter()
-                .any(|span| span.metrics.positions.is_empty())
-        });
-        let content_empty = self.value_string().is_empty();
-        !metrics_empty || content_empty
+                .any(|span| span.metrics.positions.is_empty() && !span.metrics.value.is_empty())
+        })
     }
 
     pub fn value_string(&self) -> String {
