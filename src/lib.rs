@@ -519,8 +519,10 @@ impl FontKit {
         let mut search_results = search_results.collect::<HashMap<_, _>>();
         for filter in filters {
             let mut s = search_results.clone();
+            let mut is_family = false;
             match filter {
                 Filter::Family(f) => {
+                    is_family = true;
                     s.retain(|key, item| key.family == f || item.names.iter().any(|n| n.name == f))
                 }
                 Filter::Italic(i) => s.retain(|key, _| key.italic == i),
@@ -529,6 +531,7 @@ impl FontKit {
             };
             match s.len() {
                 1 => return s.values().next().copied(),
+                0 if is_family => return None,
                 0 => {}
                 _ => search_results = s,
             }
