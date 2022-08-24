@@ -35,6 +35,10 @@ impl<T> Line<T> {
             hard_break: true,
         }
     }
+
+    fn is_rtl(&self) -> bool {
+        self.spans.iter().all(|span| span.is_rtl())
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -62,6 +66,13 @@ impl<T> Span<T> {
 
     fn height(&self) -> f32 {
         self.metrics.height(self.size, self.line_height)
+    }
+
+    fn is_rtl(&self) -> bool {
+        self.metrics
+            .positions
+            .iter()
+            .all(|p| p.level.map(|l| l.is_rtl()).unwrap_or_default())
     }
 }
 
@@ -103,21 +114,39 @@ where
             if line.hard_break {
                 self.lines.push(line);
             } else {
-                let last_line = &mut self.lines.last_mut().unwrap().spans;
+                let last_line = self.lines.last_mut().unwrap();
+                let rtl = last_line.is_rtl() && line.is_rtl();
+                let last_line = &mut last_line.spans;
                 for mut span in line.spans {
                     span.swallow_leading_space = false;
-                    if span.broke_from_prev {
-                        if let Some(last_span) = last_line.last_mut() {
-                            last_span.metrics.value.push_str(&span.metrics.value);
-                            last_span
-                                .metrics
-                                .positions
-                                .append(&mut span.metrics.positions);
+                    if rtl {
+                        if span.broke_from_prev {
+                            if let Some(first_span) = last_line.first_mut() {
+                                span.metrics.value.push_str(&first_span.metrics.value);
+                                span.metrics
+                                    .positions
+                                    .append(&mut first_span.metrics.positions);
+                                std::mem::swap(first_span, &mut span);
+                            } else {
+                                last_line.insert(0, span);
+                            }
+                        } else {
+                            last_line.insert(0, span);
+                        }
+                    } else {
+                        if span.broke_from_prev {
+                            if let Some(last_span) = last_line.last_mut() {
+                                last_span.metrics.value.push_str(&span.metrics.value);
+                                last_span
+                                    .metrics
+                                    .positions
+                                    .append(&mut span.metrics.positions);
+                            } else {
+                                last_line.push(span);
+                            }
                         } else {
                             last_line.push(span);
                         }
-                    } else {
-                        last_line.push(span);
                     }
                 }
             }
@@ -125,7 +154,18 @@ where
     }
 
     pub fn wrap_text(&mut self, width: f32) {
+        let rtl = self.lines.iter().all(|line| {
+            line.spans.iter().all(|span| {
+                span.metrics
+                    .positions
+                    .iter()
+                    .all(|p| p.level.map(|l| l.is_rtl()).unwrap_or_default())
+            })
+        });
         let mut lines = self.lines.clone().into_iter().collect::<VecDeque<_>>();
+        if rtl {
+            lines.make_contiguous().reverse();
+        }
         let mut result = vec![];
         let mut current_line = Line {
             hard_break: true,
@@ -135,6 +175,14 @@ where
         let mut is_first_line = true;
         let mut failed_with_no_acception = false;
         while let Some(mut line) = lines.pop_front() {
+            log::trace!(
+                "current line {}",
+                line.spans
+                    .iter()
+                    .map(|span| span.metrics.value.clone())
+                    .collect::<Vec<_>>()
+                    .join("")
+            );
             if line.hard_break && !is_first_line {
                 // Start a new line
                 result.push(std::mem::replace(
@@ -156,6 +204,9 @@ where
                 // Set line letter-spacing to min(zero, letter-spacing)
                 for span in &mut line.spans {
                     span.letter_spacing = span.letter_spacing.min(0.0)
+                }
+                if rtl {
+                    line.spans.reverse();
                 }
                 // Go through spans to get the first not-fitting span
                 let index = line.spans.iter().position(|span| {
@@ -195,6 +246,10 @@ where
                 let fixed_value = span.metrics.value().to_string();
                 // Try to find a naive break point
                 let mut naive_break_index = 0;
+                let total_count = span.metrics.positions.len();
+                if rtl {
+                    span.metrics.positions.reverse();
+                }
                 // Textwrap cannot find a good break point, we directly drop chars
                 while let Some(m) = span.metrics.positions.pop() {
                     dropped_metrics.push(m);
@@ -206,13 +261,18 @@ where
                         break;
                     }
                 }
-                let options = Options::new(textwrap::core::display_width(
-                    &fixed_value
-                        .nfc()
-                        .take(naive_break_index)
-                        .collect::<String>(),
-                ))
-                .word_splitter(NoHyphenation);
+                if rtl {
+                    naive_break_index = total_count - naive_break_index;
+                    span.metrics.positions.reverse();
+                }
+                // NOTE: str.nfc() & textwrap all handles RTL text well, so we do
+                // not take extra effort here
+                let display_str = fixed_value
+                    .nfc()
+                    .take(naive_break_index)
+                    .collect::<String>();
+                let options = Options::new(textwrap::core::display_width(&display_str))
+                    .word_splitter(NoHyphenation);
                 let wrapped = textwrap::wrap(&*fixed_value, options);
                 log::trace!("{:?}", wrapped);
                 let mut real_index = 0;
@@ -221,6 +281,9 @@ where
                     wrapped.iter().map(|span| span.nfc().count()).sum::<usize>(),
                     span.metrics.positions.len()
                 );
+                if rtl {
+                    real_index = total_count - 1;
+                }
                 for seg in wrapped {
                     let count = seg.nfc().count();
                     if count == 0 {
@@ -234,10 +297,19 @@ where
                             .map(|c| *c != ' ')
                             .unwrap_or(true)
                     {
-                        current_real_index += 1;
+                        if rtl {
+                            current_real_index -= 1;
+                        } else {
+                            current_real_index += 1;
+                        }
                     }
                     let factor = span.size / span.metrics.units() as f32;
-                    let acc_seg_width = (0..(current_real_index + count))
+                    let range = if rtl {
+                        (current_real_index + 1 - count)..total_count
+                    } else {
+                        0..(current_real_index + count)
+                    };
+                    let acc_seg_width = range
                         .map(|index| span.metrics.positions.get(index).unwrap())
                         .fold(0.0, |current, p| {
                             current
@@ -246,12 +318,18 @@ where
                                 + span.letter_spacing
                         });
                     if current_line_width + acc_seg_width <= width {
-                        real_index = current_real_index + count;
+                        if rtl {
+                            real_index = current_real_index - count;
+                        } else {
+                            real_index = current_real_index + count;
+                        }
                     } else {
                         break;
                     }
                 }
-                if real_index == 0 {
+                if (real_index == 0 && !rtl)
+                    || (rtl && real_index == span.metrics.positions.len() - 1)
+                {
                     real_index = naive_break_index
                 }
 
@@ -260,10 +338,19 @@ where
                 new_span.broke_from_prev = true;
                 new_span.metrics.positions = span.metrics.positions.split_off(real_index);
                 let mut chars = fixed_value.nfc().collect::<Vec<_>>();
-                log::trace!("real_index {} index {}, {:?}", real_index, index, chars);
                 let new_chars = chars.split_off(real_index);
+                log::trace!(
+                    "real_index {} index {}, {:?}, {:?}",
+                    real_index,
+                    index,
+                    chars,
+                    new_chars
+                );
                 span.metrics.value = chars.into_iter().collect::<String>();
                 new_span.metrics.value = new_chars.into_iter().collect::<String>();
+                if rtl {
+                    std::mem::swap(span, &mut new_span);
+                }
                 if !span.metrics.value.is_empty() {
                     current_line.spans.push(span.clone());
                 }
@@ -297,6 +384,9 @@ where
                 }
                 lines.push_front(new_line);
                 current_line_width = 0.0;
+                if real_index != 0 {
+                    failed_with_no_acception = false;
+                }
             }
         }
         if !current_line.spans.is_empty() {
@@ -306,6 +396,7 @@ where
             return;
         }
         self.lines = result;
+        log::trace!("adjust result: {}", self.value_string());
     }
 
     pub fn valid(&self) -> bool {

@@ -370,6 +370,15 @@ impl FontKit {
         })
     }
 
+    #[cfg(wasm)]
+    #[wasm_bindgen(js_name = "exact_match")]
+    pub fn exact_match_wasm(&self, key: &FontKey) -> Option<wasm::FontWasm> {
+        let font = self.exact_match(key)?;
+        Some(wasm::FontWasm {
+            ptr: font as *const _,
+        })
+    }
+
     pub fn len(&self) -> usize {
         self.fonts.len()
     }
@@ -484,6 +493,10 @@ impl FontKit {
             }
         }
         Ok(db)
+    }
+
+    pub fn exact_match(&self, key: &FontKey) -> Option<&Font> {
+        self.fonts.iter().find(|font| font.key == *key)
     }
 
     pub fn query(&self, key: &FontKey) -> Option<&Font> {
