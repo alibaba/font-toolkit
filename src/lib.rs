@@ -581,6 +581,7 @@ fn load_font_from_path(path: impl AsRef<std::path::Path>) -> Option<Font> {
                 }
             };
             font.path = Some(path.to_path_buf());
+            // println!("{:?}", font.names);
             font.unload();
             Some(font)
         }
@@ -640,7 +641,7 @@ pub unsafe extern "C" fn font_for_face(
 ) -> *const u8 {
     let fontkit = &mut *fontkit;
     let font_face = std::slice::from_raw_parts(font_face, len);
-    let font_face = std::str::from_utf8(font_face).unwrap();
+    let font_face = std::str::from_utf8_unchecked(font_face);
     let key = FontKey::new(font_face.to_string(), weight, italic, stretch.into());
     let font = fontkit.query(&key);
     match font {

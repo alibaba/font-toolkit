@@ -78,7 +78,7 @@ export class FontKitIndex {
     const font = this.instance.exports.font_for_face(
       this.fontkit_ptr,
       pInput,
-      fontFamily.length,
+      buffer.length,
       weight,
       isItalic,
       stretch,
@@ -99,7 +99,7 @@ export class FontKitIndex {
         const pInput = instance.exports.fontkit_alloc();
         const view = new Uint8Array(instance.exports.memory.buffer, pInput, buffer.length);
         encode(view, buffer);
-        instance.exports.add_search_path(ptr, pInput, path.length);
+        instance.exports.add_search_path(ptr, pInput, buffer.length);
         instance.exports.fontkit_mfree(pInput);
       });
     } catch (e) {
