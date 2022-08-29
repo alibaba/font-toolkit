@@ -56,7 +56,7 @@ pub struct Span<T> {
 impl<T> Span<T> {
     fn width(&self) -> f32 {
         let mut width = self.metrics.width(self.size, self.letter_spacing);
-        if self.swallow_leading_space {
+        if self.swallow_leading_space && self.metrics.positions[0].metrics.c == ' ' {
             let c = &self.metrics.positions[0];
             width -=
                 c.metrics.advanced_x as f32 / c.metrics.units * self.size + self.letter_spacing;
