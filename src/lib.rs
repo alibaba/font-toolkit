@@ -225,8 +225,12 @@ impl Font {
                     || id == name_id::POST_SCRIPT_NAME
                     || id == name_id::TYPOGRAPHIC_FAMILY
                 {
+                    let mut name_str = name.to_string()?;
+                    if id == name_id::POST_SCRIPT_NAME {
+                        name_str = name_str.replace(" ", "-");
+                    }
                     Some(Name {
-                        name: name.to_string()?,
+                        name: name_str,
                         language_id: name.language_id,
                     })
                 } else {
