@@ -271,7 +271,9 @@ where
                     .nfc()
                     .take(naive_break_index)
                     .collect::<String>();
-                let options = Options::new(textwrap::core::display_width(&display_str))
+                let display_width = textwrap::core::display_width(&display_str);
+                let options = Options::new(display_width)
+                    .wrap_algorithm(textwrap::WrapAlgorithm::FirstFit)
                     .word_splitter(NoHyphenation);
                 let wrapped = textwrap::wrap(&*fixed_value, options);
                 log::trace!("{:?}", wrapped);
