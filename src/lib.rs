@@ -37,7 +37,7 @@ pub struct Width(ParserWidth);
 
 #[cfg_attr(wasm, wasm_bindgen)]
 impl Width {
-    #[cfg_attr(wasm, wasm_bindgen)]
+    #[cfg_attr(wasm, wasm_bindgen(constructor))]
     pub fn new(width: String) -> Self {
         width.parse().unwrap()
     }
@@ -125,6 +125,7 @@ impl fmt::Display for FontKey {
 
 #[cfg_attr(wasm, wasm_bindgen)]
 impl FontKey {
+    #[cfg_attr(wasm, wasm_bindgen(constructor))]
     pub fn new(family: String, weight: u32, italic: bool, stretch: Width) -> Self {
         FontKey {
             family,
