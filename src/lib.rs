@@ -512,24 +512,7 @@ impl FontKit {
             Filter::Stretch(key.stretch),
         ];
         // Fallback weight logic
-        let mut weight = key.weight;
-        if key.weight >= 400 {
-            loop {
-                weight += 25;
-                if weight > 900 {
-                    break;
-                }
-                filters.push(Filter::Weight(weight))
-            }
-        } else if key.weight > 100 {
-            loop {
-                weight -= 25;
-                if weight < 100 {
-                    break;
-                }
-                filters.push(Filter::Weight(weight))
-            }
-        }
+        filters.push(Filter::Weight(0));
         #[cfg(not(dashmap))]
         let search_results = self.fonts.iter().map(|item| (item.key(), item));
         #[cfg(dashmap)]
@@ -544,7 +527,7 @@ impl FontKit {
                     s.retain(|key, item| key.family == f || item.names.iter().any(|n| n.name == f))
                 }
                 Filter::Italic(i) => s.retain(|key, _| key.italic == i),
-                Filter::Weight(w) => s.retain(|key, _| key.weight == w),
+                Filter::Weight(w) => s.retain(|key, _| w == 0 || key.weight == w),
                 Filter::Stretch(st) => s.retain(|key, _| key.stretch == st),
             };
             match s.len() {
