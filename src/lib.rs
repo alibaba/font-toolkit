@@ -183,6 +183,7 @@ struct Name {
 pub struct Font {
     key: FontKey,
     names: Vec<Name>,
+    style_names: Vec<Name>,
     face: ArcSwap<Option<StaticFace>>,
     path: Option<PathBuf>,
 }
@@ -215,12 +216,19 @@ impl Font {
             face_builder: |buf| Face::from_slice(buf, 0),
         }
         .try_build()?;
+        let mut style_names = vec![];
         let names = face
             .borrow_face()
             .names()
             .into_iter()
             .filter_map(|name| {
                 let id = name.name_id;
+                if id == name_id::TYPOGRAPHIC_SUBFAMILY {
+                    style_names.push(Name {
+                        name: name.to_string()?,
+                        language_id: name.language_id,
+                    });
+                }
                 if id == name_id::FAMILY
                     || id == name_id::FULL_NAME
                     || id == name_id::POST_SCRIPT_NAME
@@ -271,6 +279,7 @@ impl Font {
             key,
             face: ArcSwap::new(Arc::new(Some(face))),
             path: None,
+            style_names,
         };
         Ok(font)
     }
@@ -724,7 +733,8 @@ pub unsafe extern "C" fn list_all_font(fontkit: *mut FontKit) -> *const u8 {
                 "stretch": Width::from(key.stretch as u16).to_string(),
                 "italic": key.italic,
                 "weight": key.weight,
-                "family": key.family()
+                "family": key.family(),
+                "styleNames": font.style_names.clone()
             })
         })
         .collect::<Vec<_>>();
