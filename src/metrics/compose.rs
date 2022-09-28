@@ -201,10 +201,6 @@ where
                 current_line_width += line_width;
                 current_line.spans.append(&mut line.spans);
             } else {
-                // Set line letter-spacing to min(zero, letter-spacing)
-                for span in &mut line.spans {
-                    span.letter_spacing = span.letter_spacing.min(0.0)
-                }
                 if rtl {
                     line.spans.reverse();
                 }
