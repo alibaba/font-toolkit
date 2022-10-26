@@ -193,9 +193,10 @@ impl Font {
         self.key.clone()
     }
 
-    fn from_buffer(mut buffer: &[u8]) -> Result<Self, Error> {
+    fn from_buffer(mut buffer: &[u8]) -> Result<Vec<Self>, Error> {
         use ttf_parser::name_id;
         let ty = infer::get(buffer).ok_or(Error::UnrecognizedBuffer)?;
+        let mut font_count = 1;
         let buffer = match (ty.mime_type(), ty.extension()) {
             #[cfg(feature = "woff2")]
             ("application/font-woff", "woff2") => woff2::convert_woff2_to_ttf(&mut buffer)?,
@@ -209,82 +210,93 @@ impl Font {
                 otf_buf.into_inner()
             }
             ("application/font-sfnt", _) => buffer.to_vec(),
+            ("application/font-collection", _) => {
+                font_count = ttf_parser::fonts_in_collection(&buffer).unwrap_or(1);
+                buffer.to_vec()
+            }
             a => return Err(Error::UnsupportedMIME(a.0)),
         };
-        let face = StaticFaceTryBuilder {
-            buffer,
-            face_builder: |buf| Face::from_slice(buf, 0),
-        }
-        .try_build()?;
-        let mut style_names = vec![];
-        let names = face
-            .borrow_face()
-            .names()
-            .into_iter()
-            .filter_map(|name| {
-                let id = name.name_id;
-                if id == name_id::TYPOGRAPHIC_SUBFAMILY {
-                    style_names.push(Name {
-                        name: name.to_string()?,
-                        language_id: name.language_id,
-                    });
+        (0..font_count)
+            .map(|index| {
+                let face = StaticFaceTryBuilder {
+                    buffer: buffer.clone(),
+                    face_builder: |buf| Face::from_slice(buf, index),
                 }
-                if id == name_id::FAMILY
-                    || id == name_id::FULL_NAME
-                    || id == name_id::POST_SCRIPT_NAME
-                    || id == name_id::TYPOGRAPHIC_FAMILY
-                {
-                    let mut name_str = name.to_string()?;
-                    if id == name_id::POST_SCRIPT_NAME {
-                        name_str = name_str.replace(" ", "-");
-                    }
-                    Some(Name {
-                        name: name_str,
-                        language_id: name.language_id,
+                .try_build()?;
+                let mut style_names = vec![];
+                let names = face
+                    .borrow_face()
+                    .names()
+                    .into_iter()
+                    .filter_map(|name| {
+                        let id = name.name_id;
+                        let mut name_str = name.to_string().or_else(|| {
+                            // try to force unicode encoding
+                            Some(std::str::from_utf8(name.name).ok()?.to_string())
+                        })?;
+                        if id == name_id::TYPOGRAPHIC_SUBFAMILY {
+                            style_names.push(Name {
+                                name: name_str.clone(),
+                                language_id: name.language_id,
+                            });
+                        }
+                        if id == name_id::FAMILY
+                            || id == name_id::FULL_NAME
+                            || id == name_id::POST_SCRIPT_NAME
+                            || id == name_id::TYPOGRAPHIC_FAMILY
+                        {
+                            if id == name_id::POST_SCRIPT_NAME {
+                                name_str = name_str.replace(" ", "-");
+                            }
+                            Some(Name {
+                                name: name_str,
+                                language_id: name.language_id,
+                            })
+                        } else {
+                            None
+                        }
                     })
-                } else {
-                    None
+                    .collect::<Vec<_>>();
+                if names.is_empty() {
+                    return Err(Error::EmptyName);
                 }
+                // Select a good name
+                let ascii_name = names
+                    .iter()
+                    .map(|item| &item.name)
+                    .filter(|name| name.is_ascii())
+                    .min_by(|n1, n2| match n1.len().cmp(&n2.len()) {
+                        std::cmp::Ordering::Equal => n1
+                            .chars()
+                            .filter(|c| *c == '-')
+                            .count()
+                            .cmp(&n2.chars().filter(|c| *c == '-').count()),
+                        ordering @ _ => ordering,
+                    })
+                    .cloned()
+                    .map(|name| {
+                        if name.starts_with(".") {
+                            (&name[1..]).to_string()
+                        } else {
+                            name
+                        }
+                    });
+                let key = FontKey {
+                    weight: face.borrow_face().weight().to_number() as u32,
+                    italic: face.borrow_face().is_italic(),
+                    stretch: face.borrow_face().width().to_number() as u32,
+                    family: ascii_name.unwrap_or_else(|| names[0].name.clone()),
+                };
+                let font = Font {
+                    names,
+                    key,
+                    face: ArcSwap::new(Arc::new(Some(face))),
+                    path: None,
+                    style_names,
+                };
+                Ok(font)
             })
-            .collect::<Vec<_>>();
-        if names.is_empty() {
-            return Err(Error::EmptyName);
-        }
-        // Select a good name
-        let ascii_name = names
-            .iter()
-            .map(|item| &item.name)
-            .filter(|name| name.is_ascii())
-            .min_by(|n1, n2| match n1.len().cmp(&n2.len()) {
-                std::cmp::Ordering::Equal => n1
-                    .chars()
-                    .filter(|c| *c == '-')
-                    .count()
-                    .cmp(&n2.chars().filter(|c| *c == '-').count()),
-                ordering @ _ => ordering,
-            })
-            .cloned()
-            .map(|name| {
-                if name.starts_with(".") {
-                    (&name[1..]).to_string()
-                } else {
-                    name
-                }
-            });
-        let key = FontKey {
-            weight: face.borrow_face().weight().to_number() as u32,
-            italic: face.borrow_face().is_italic(),
-            stretch: face.borrow_face().width().to_number() as u32,
-            family: ascii_name.unwrap_or_else(|| names[0].name.clone()),
-        };
-        let font = Font {
-            names,
-            key,
-            face: ArcSwap::new(Arc::new(Some(face))),
-            path: None,
-            style_names,
-        };
-        Ok(font)
+            .collect::<Result<_, _>>()
     }
 
     pub fn unload(&self) {
@@ -302,8 +314,9 @@ impl Font {
             let mut buffer = Vec::new();
             let mut file = std::fs::File::open(path)?;
             file.read_to_end(&mut buffer).unwrap();
-            let font = Font::from_buffer(&buffer)?;
-            self.face.store(font.face.load_full());
+            for font in Font::from_buffer(&buffer)? {
+                self.face.store(font.face.load_full());
+            }
         }
         Ok(())
     }
@@ -369,13 +382,20 @@ impl FontKit {
         }
     }
 
-    /// Add a font from a buffer. This will load the font and store the font
-    /// buffer in FontKit. Type information is inferred from the magic number
-    /// using `infer` crate
+    /// Add fonts from a buffer. This will load the fonts and store the buffer
+    /// in FontKit. Type information is inferred from the magic number using
+    /// `infer` crate.
+    ///
+    /// If the given buffer is a font collection (ttc), multiple keys will be
+    /// returned.
     #[cfg(wasm)]
     #[wasm_bindgen(js_name = "add_font_from_buffer")]
-    pub fn add_font_from_buffer_wasm(&mut self, buffer: Vec<u8>) -> Result<FontKey, JsValue> {
-        Ok(self.add_font_from_buffer(buffer)?)
+    pub fn add_font_from_buffer_wasm(&mut self, buffer: Vec<u8>) -> Result<js_sys::Array, JsValue> {
+        Ok(js_sys::Array::from_iter(
+            self.add_font_from_buffer(buffer)?
+                .into_iter()
+                .map(JsValue::from),
+        ))
     }
 
     #[cfg(wasm)]
@@ -452,26 +472,40 @@ impl FontKit {
 }
 
 impl FontKit {
-    /// Add a font from a buffer. This will load the font and store the font
-    /// buffer in FontKit. Type information is inferred from the magic number
-    /// using `infer` crate
+    /// Add fonts from a buffer. This will load the fonts and store the buffer
+    /// in FontKit. Type information is inferred from the magic number using
+    /// `infer` crate.
+    ///
+    /// If the given buffer is a font collection (ttc), multiple keys will be
+    /// returned.
     #[cfg(not(dashmap))]
-    pub fn add_font_from_buffer(&mut self, buffer: Vec<u8>) -> Result<FontKey, Error> {
-        let font = Font::from_buffer(&buffer)?;
-        let key = font.key().clone();
-        self.fonts.push(font);
-        Ok(key)
+    pub fn add_font_from_buffer(&mut self, buffer: Vec<u8>) -> Result<Vec<FontKey>, Error> {
+        Ok(Font::from_buffer(&buffer)?
+            .into_iter()
+            .map(|font| {
+                let key = font.key().clone();
+                self.fonts.push(font);
+                key
+            })
+            .collect::<Vec<_>>())
     }
 
-    /// Add a font from a buffer. This will load the font and store the font
-    /// buffer in FontKit. Type information is inferred from the magic number
-    /// using `infer` crate
+    /// Add fonts from a buffer. This will load the fonts and store the buffer
+    /// in FontKit. Type information is inferred from the magic number using
+    /// `infer` crate.
+    ///
+    /// If the given buffer is a font collection (ttc), multiple keys will be
+    /// returned.
     #[cfg(dashmap)]
-    pub fn add_font_from_buffer(&self, buffer: Vec<u8>) -> Result<FontKey, Error> {
-        let font = Font::from_buffer(&buffer)?;
-        let key = font.key().clone();
-        self.fonts.insert(key, font);
-        Ok(key)
+    pub fn add_font_from_buffer(&self, buffer: Vec<u8>) -> Result<Vec<FontKey>, Error> {
+        Ok(Font::from_buffer(&buffer)?
+            .into_iter()
+            .map(|font| {
+                let key = font.key().clone();
+                self.fonts.insert(font);
+                key
+            })
+            .collect::<Vec<_>>())
     }
 
     /// Recursively scan a local path for fonts, this method will not store the
@@ -486,13 +520,17 @@ impl FontKit {
             if path.is_dir() {
                 continue;
             }
-            if let Some(font) = load_font_from_path(&path) {
-                self.fonts.push(font);
+            if let Some(fonts) = load_font_from_path(&path) {
+                for font in fonts {
+                    self.fonts.push(font);
+                }
             }
         }
         #[cfg(wasi)]
-        if let Some(font) = load_font_from_path(path.as_ref()) {
-            self.fonts.push(font);
+        if let Some(fonts) = load_font_from_path(path.as_ref()) {
+            for font in fonts {
+                self.fonts.push(font);
+            }
         }
         Ok(())
     }
@@ -554,7 +592,7 @@ impl FontKit {
 }
 
 #[cfg(not(wasm))]
-fn load_font_from_path(path: impl AsRef<std::path::Path>) -> Option<Font> {
+fn load_font_from_path(path: impl AsRef<std::path::Path>) -> Option<Vec<Font>> {
     use std::io::Read;
 
     let mut buffer = Vec::new();
@@ -573,17 +611,19 @@ fn load_font_from_path(path: impl AsRef<std::path::Path>) -> Option<Font> {
             let mut file = std::fs::File::open(&path).unwrap();
             buffer.clear();
             file.read_to_end(&mut buffer).unwrap();
-            let mut font = match Font::from_buffer(&buffer) {
+            let mut fonts = match Font::from_buffer(&buffer) {
                 Ok(f) => f,
                 Err(e) => {
                     log::warn!("Failed loading font {:?}: {:?}", path, e);
                     return None;
                 }
             };
-            font.path = Some(path.to_path_buf());
-            // println!("{:?}", font.names);
-            font.unload();
-            Some(font)
+            for font in &mut fonts {
+                font.path = Some(path.to_path_buf());
+                // println!("{:?}", font.names);
+                font.unload();
+            }
+            Some(fonts)
         }
         _ => None,
     }
