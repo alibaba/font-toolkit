@@ -6,6 +6,8 @@ pub enum Error {
     UnrecognizedBuffer,
     #[error("MIME {0} not supported as a font")]
     UnsupportedMIME(&'static str),
+    #[error("Font doesn't have a proper name")]
+    EmptyName,
     #[error(transparent)]
     Parser(#[from] ttf_parser::FaceParsingError),
     #[error(transparent)]

@@ -6,6 +6,7 @@ use pathfinder_content::stroke::{LineCap, LineJoin, OutlineStrokeToFill, StrokeS
 use pathfinder_geometry::vector::Vector2F;
 use ttf_parser::{OutlineBuilder, Rect};
 use usvg::PathData;
+pub use usvg::PathSegment;
 
 impl Font {
     /// Output the outline instructions of a glyph

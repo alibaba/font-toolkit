@@ -247,6 +247,9 @@ impl Font {
                 }
             })
             .collect::<Vec<_>>();
+        if names.is_empty() {
+            return Err(Error::EmptyName);
+        }
         // Select a good name
         let ascii_name = names
             .iter()
