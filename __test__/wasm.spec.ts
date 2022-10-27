@@ -19,7 +19,7 @@ test.before(async () => {
 
 test('em box', (t) => {
   const fontkit = new FontKit();
-  const key = fontkit.add_font_from_buffer(fontData!);
+  const [key] = fontkit.add_font_from_buffer(fontData!);
   const font = fontkit.query(key);
 
   t.not(font, undefined);
@@ -28,7 +28,7 @@ test('em box', (t) => {
 
 test('glyph path to_string()', (t) => {
   const fontkit = new FontKit();
-  const key = fontkit.add_font_from_buffer(fontData!);
+  const [key] = fontkit.add_font_from_buffer(fontData!);
   const font = fontkit.query(key);
 
   t.is(
