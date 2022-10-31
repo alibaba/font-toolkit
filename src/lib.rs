@@ -182,6 +182,7 @@ struct Name {
 
 pub struct Font {
     key: FontKey,
+    index: u32,
     names: Vec<Name>,
     style_names: Vec<Name>,
     face: ArcSwap<Option<StaticFace>>,
@@ -194,7 +195,6 @@ impl Font {
     }
 
     fn from_buffer(mut buffer: &[u8]) -> Result<Vec<Self>, Error> {
-        use ttf_parser::name_id;
         let ty = infer::get(buffer).ok_or(Error::UnrecognizedBuffer)?;
         let mut font_count = 1;
         let buffer = match (ty.mime_type(), ty.extension()) {
@@ -216,87 +216,92 @@ impl Font {
             }
             a => return Err(Error::UnsupportedMIME(a.0)),
         };
+
         (0..font_count)
-            .map(|index| {
-                let face = StaticFaceTryBuilder {
-                    buffer: buffer.clone(),
-                    face_builder: |buf| Face::from_slice(buf, index),
-                }
-                .try_build()?;
-                let mut style_names = vec![];
-                let names = face
-                    .borrow_face()
-                    .names()
-                    .into_iter()
-                    .filter_map(|name| {
-                        let id = name.name_id;
-                        let mut name_str = name.to_string().or_else(|| {
-                            // try to force unicode encoding
-                            Some(std::str::from_utf8(name.name).ok()?.to_string())
-                        })?;
-                        if id == name_id::TYPOGRAPHIC_SUBFAMILY {
-                            style_names.push(Name {
-                                name: name_str.clone(),
-                                language_id: name.language_id,
-                            });
-                        }
-                        if id == name_id::FAMILY
-                            || id == name_id::FULL_NAME
-                            || id == name_id::POST_SCRIPT_NAME
-                            || id == name_id::TYPOGRAPHIC_FAMILY
-                        {
-                            if id == name_id::POST_SCRIPT_NAME {
-                                name_str = name_str.replace(" ", "-");
-                            }
-                            Some(Name {
-                                name: name_str,
-                                language_id: name.language_id,
-                            })
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                if names.is_empty() {
-                    return Err(Error::EmptyName);
-                }
-                // Select a good name
-                let ascii_name = names
-                    .iter()
-                    .map(|item| &item.name)
-                    .filter(|name| name.is_ascii())
-                    .min_by(|n1, n2| match n1.len().cmp(&n2.len()) {
-                        std::cmp::Ordering::Equal => n1
-                            .chars()
-                            .filter(|c| *c == '-')
-                            .count()
-                            .cmp(&n2.chars().filter(|c| *c == '-').count()),
-                        ordering @ _ => ordering,
-                    })
-                    .cloned()
-                    .map(|name| {
-                        if name.starts_with(".") {
-                            (&name[1..]).to_string()
-                        } else {
-                            name
-                        }
-                    });
-                let key = FontKey {
-                    weight: face.borrow_face().weight().to_number() as u32,
-                    italic: face.borrow_face().is_italic(),
-                    stretch: face.borrow_face().width().to_number() as u32,
-                    family: ascii_name.unwrap_or_else(|| names[0].name.clone()),
-                };
-                let font = Font {
-                    names,
-                    key,
-                    face: ArcSwap::new(Arc::new(Some(face))),
-                    path: None,
-                    style_names,
-                };
-                Ok(font)
-            })
+            .map(|index| Font::from_buffer_with_index(buffer.clone(), index))
             .collect::<Result<_, _>>()
+    }
+
+    fn from_buffer_with_index(buffer: Vec<u8>, index: u32) -> Result<Self, Error> {
+        use ttf_parser::name_id;
+        let face = StaticFaceTryBuilder {
+            buffer: buffer.clone(),
+            face_builder: |buf| Face::from_slice(buf, index),
+        }
+        .try_build()?;
+        let mut style_names = vec![];
+        let names = face
+            .borrow_face()
+            .names()
+            .into_iter()
+            .filter_map(|name| {
+                let id = name.name_id;
+                let mut name_str = name.to_string().or_else(|| {
+                    // try to force unicode encoding
+                    Some(std::str::from_utf8(name.name).ok()?.to_string())
+                })?;
+                if id == name_id::TYPOGRAPHIC_SUBFAMILY {
+                    style_names.push(Name {
+                        name: name_str.clone(),
+                        language_id: name.language_id,
+                    });
+                }
+                if id == name_id::FAMILY
+                    || id == name_id::FULL_NAME
+                    || id == name_id::POST_SCRIPT_NAME
+                    || id == name_id::TYPOGRAPHIC_FAMILY
+                {
+                    if id == name_id::POST_SCRIPT_NAME {
+                        name_str = name_str.replace(" ", "-");
+                    }
+                    Some(Name {
+                        name: name_str,
+                        language_id: name.language_id,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        if names.is_empty() {
+            return Err(Error::EmptyName);
+        }
+        // Select a good name
+        let ascii_name = names
+            .iter()
+            .map(|item| &item.name)
+            .filter(|name| name.is_ascii())
+            .min_by(|n1, n2| match n1.len().cmp(&n2.len()) {
+                std::cmp::Ordering::Equal => n1
+                    .chars()
+                    .filter(|c| *c == '-')
+                    .count()
+                    .cmp(&n2.chars().filter(|c| *c == '-').count()),
+                ordering @ _ => ordering,
+            })
+            .cloned()
+            .map(|name| {
+                if name.starts_with(".") {
+                    (&name[1..]).to_string()
+                } else {
+                    name
+                }
+            });
+        let key = FontKey {
+            weight: face.borrow_face().weight().to_number() as u32,
+            italic: face.borrow_face().is_italic(),
+            stretch: face.borrow_face().width().to_number() as u32,
+            family: ascii_name.unwrap_or_else(|| names[0].name.clone()),
+        };
+        let font = Font {
+            names,
+            key,
+            index,
+            face: ArcSwap::new(Arc::new(Some(face))),
+            path: None,
+            style_names,
+        };
+        Ok(font)
     }
 
     pub fn unload(&self) {
@@ -314,9 +319,8 @@ impl Font {
             let mut buffer = Vec::new();
             let mut file = std::fs::File::open(path)?;
             file.read_to_end(&mut buffer).unwrap();
-            for font in Font::from_buffer(&buffer)? {
-                self.face.store(font.face.load_full());
-            }
+            let font = Font::from_buffer_with_index(buffer, self.index)?;
+            self.face.store(font.face.load_full());
         }
         Ok(())
     }
