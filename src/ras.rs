@@ -71,7 +71,7 @@ impl Font {
                 StrokeStyle {
                     line_width: stroke_width / factor,
                     line_cap: LineCap::default(),
-                    line_join: LineJoin::default(),
+                    line_join: LineJoin::Miter(4.0),
                 },
             );
             filler.offset();
