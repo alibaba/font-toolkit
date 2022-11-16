@@ -12,6 +12,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use ttf_parser::{Face, Width as ParserWidth};
+pub use ttf_parser::LineMetrics;
 // #[cfg(not(wasm))]
 // use walkdir::WalkDir;
 #[cfg(wasm)]
@@ -226,7 +227,7 @@ impl Font {
         use ttf_parser::name_id;
         let face = StaticFaceTryBuilder {
             buffer: buffer.clone(),
-            face_builder: |buf| Face::from_slice(buf, index),
+            face_builder: |buf| Face::parse(buf, index),
         }
         .try_build()?;
         let mut style_names = vec![];
@@ -355,6 +356,20 @@ impl Font {
 
     pub fn path(&self) -> Option<&PathBuf> {
         self.path.as_ref()
+    }
+
+    pub fn strikeout_metrics(&self) -> Option<LineMetrics> {
+        let f = self.face.load();
+        let f = f.as_ref().as_ref().unwrap();
+        let f = f.borrow_face();
+        f.strikeout_metrics()
+    }
+
+    pub fn underline_metrics(&self) -> Option<LineMetrics> {
+        let f = self.face.load();
+        let f = f.as_ref().as_ref().unwrap();
+        let f = f.borrow_face();
+        f.underline_metrics()
     }
 }
 
