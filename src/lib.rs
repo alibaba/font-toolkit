@@ -4,15 +4,16 @@ use arc_swap::ArcSwap;
 use ouroboros::self_referencing;
 #[cfg(not(wasm))]
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::ops::Deref;
 #[cfg(not(wasm))]
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
-use ttf_parser::{Face, Width as ParserWidth};
 pub use ttf_parser::LineMetrics;
+use ttf_parser::{Face, Width as ParserWidth};
 // #[cfg(not(wasm))]
 // use walkdir::WalkDir;
 #[cfg(wasm)]
@@ -181,12 +182,13 @@ struct Name {
     pub language_id: u16,
 }
 
+#[derive(Clone)]
 pub struct Font {
     key: FontKey,
     index: u32,
     names: Vec<Name>,
     style_names: Vec<Name>,
-    face: ArcSwap<Option<StaticFace>>,
+    face: Arc<ArcSwap<Option<StaticFace>>>,
     path: Option<PathBuf>,
 }
 
@@ -298,7 +300,7 @@ impl Font {
             names,
             key,
             index,
-            face: ArcSwap::new(Arc::new(Some(face))),
+            face: Arc::new(ArcSwap::new(Arc::new(Some(face)))),
             path: None,
             style_names,
         };
@@ -384,7 +386,7 @@ pub struct StaticFace {
 #[cfg_attr(wasm, wasm_bindgen)]
 pub struct FontKit {
     #[cfg(not(dashmap))]
-    fonts: Vec<Font>,
+    fonts: HashMap<FontKey, Font>,
     #[cfg(dashmap)]
     fonts: dashmap::DashMap<FontKey, Font>,
     fallback_font_key: Option<Box<dyn Fn(FontKey) -> FontKey + Send + Sync>>,
@@ -396,7 +398,10 @@ impl FontKit {
     #[cfg_attr(wasm, wasm_bindgen(constructor))]
     pub fn new() -> Self {
         FontKit {
-            fonts: Vec::new(),
+            #[cfg(not(dashmap))]
+            fonts: HashMap::new(),
+            #[cfg(dashmap)]
+            fonts: dashmap::DashMap::new(),
             fallback_font_key: None,
         }
     }
@@ -421,6 +426,7 @@ impl FontKit {
     #[wasm_bindgen(js_name = "query")]
     pub fn query_wasm(&self, key: &FontKey) -> Option<wasm::FontWasm> {
         let font = self.query(key)?;
+        let font = font.deref();
         Some(wasm::FontWasm {
             ptr: font as *const _,
         })
@@ -430,6 +436,7 @@ impl FontKit {
     #[wasm_bindgen(js_name = "exact_match")]
     pub fn exact_match_wasm(&self, key: &FontKey) -> Option<wasm::FontWasm> {
         let font = self.exact_match(key)?;
+        let font = font.deref();
         Some(wasm::FontWasm {
             ptr: font as *const _,
         })
@@ -503,7 +510,7 @@ impl FontKit {
             .into_iter()
             .map(|font| {
                 let key = font.key().clone();
-                self.fonts.push(font);
+                self.fonts.insert(key.clone(), font);
                 key
             })
             .collect::<Vec<_>>())
@@ -521,7 +528,7 @@ impl FontKit {
             .into_iter()
             .map(|font| {
                 let key = font.key().clone();
-                self.fonts.insert(font);
+                self.fonts.insert(key.clone(), font);
                 key
             })
             .collect::<Vec<_>>())
@@ -541,7 +548,7 @@ impl FontKit {
             }
             if let Some(fonts) = load_font_from_path(&path) {
                 for font in fonts {
-                    self.fonts.push(font);
+                    self.fonts.insert(font.key(), font);
                 }
             }
         }
@@ -558,6 +565,8 @@ impl FontKit {
     pub fn to_fontdb(&self) -> Result<fontdb::Database, Error> {
         let mut db = fontdb::Database::new();
         for font in &self.fonts {
+            #[cfg(not(dashmap))]
+            let font = font.1;
             if let Some(face) = &**font.face.load() {
                 db.load_font_data(face.borrow_buffer().clone());
                 continue;
@@ -569,11 +578,14 @@ impl FontKit {
         Ok(db)
     }
 
-    pub fn exact_match(&self, key: &FontKey) -> Option<&Font> {
-        self.fonts.iter().find(|font| font.key == *key)
+    pub fn exact_match(&self, key: &FontKey) -> Option<impl Deref<Target = Font> + '_> {
+        #[cfg(dashmap)]
+        return self.fonts.iter().find(|font| *font.key() == *key);
+        #[cfg(not(dashmap))]
+        self.fonts.values().find(|font| font.key == *key)
     }
 
-    pub fn query(&self, key: &FontKey) -> Option<&Font> {
+    pub fn query(&self, key: &FontKey) -> Option<impl Deref<Target = Font> + '_> {
         let mut filters = vec![
             Filter::Family(&key.family),
             Filter::Italic(key.italic),
@@ -582,25 +594,39 @@ impl FontKit {
         ];
         // Fallback weight logic
         filters.push(Filter::Weight(0));
-        #[cfg(not(dashmap))]
-        let search_results = self.fonts.iter().map(|item| (item.key(), item));
-        #[cfg(dashmap)]
-        let search_results = self.fonts.iter().map(|item| item.multi());
-        let mut search_results = search_results.collect::<HashMap<_, _>>();
+        let mut search_results = self
+            .fonts
+            .iter()
+            .map(|item| {
+                #[cfg(dashmap)]
+                return item.key().clone();
+                #[cfg(not(dashmap))]
+                item.0.clone()
+            })
+            .collect::<HashSet<_>>();
         for filter in filters {
             let mut s = search_results.clone();
             let mut is_family = false;
             match filter {
                 Filter::Family(f) => {
                     is_family = true;
-                    s.retain(|key, item| key.family == f || item.names.iter().any(|n| n.name == f))
+                    s.retain(|key| {
+                        key.family == f
+                            || self
+                                .fonts
+                                .get(key)
+                                .unwrap()
+                                .names
+                                .iter()
+                                .any(|n| n.name == f)
+                    })
                 }
-                Filter::Italic(i) => s.retain(|key, _| key.italic == i),
-                Filter::Weight(w) => s.retain(|key, _| w == 0 || key.weight == w),
-                Filter::Stretch(st) => s.retain(|key, _| key.stretch == st),
+                Filter::Italic(i) => s.retain(|key| key.italic == i),
+                Filter::Weight(w) => s.retain(|key| w == 0 || key.weight == w),
+                Filter::Stretch(st) => s.retain(|key| key.stretch == st),
             };
             match s.len() {
-                1 => return s.values().next().copied(),
+                1 => return self.fonts.get(s.iter().next()?),
                 0 if is_family => return None,
                 0 => {}
                 _ => search_results = s,
@@ -704,7 +730,7 @@ pub unsafe extern "C" fn font_for_face(
     let key = FontKey::new(font_face.to_string(), weight, italic, stretch.into());
     let font = fontkit.query(&key);
     match font {
-        Some(font) => font as *const _ as *const u8,
+        Some(font) => font.deref() as *const _ as *const u8,
         None => {
             eprintln!("{:?} not found in {} fonts", key, fontkit.len());
             std::ptr::null()
@@ -789,6 +815,8 @@ pub unsafe extern "C" fn list_all_font(fontkit: *mut FontKit) -> *const u8 {
         .fonts
         .iter()
         .map(|font| {
+            #[cfg(not(dashmap))]
+            let font = font.1;
             let key = font.key();
             serde_json::json!({
                 "names": font.names,
