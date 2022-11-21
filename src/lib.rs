@@ -273,7 +273,7 @@ impl Font {
         let ascii_name = names
             .iter()
             .map(|item| &item.name)
-            .filter(|name| name.is_ascii())
+            .filter(|name| name.is_ascii() && name.len() > 3)
             .min_by(|n1, n2| match n1.len().cmp(&n2.len()) {
                 std::cmp::Ordering::Equal => n1
                     .chars()
