@@ -555,7 +555,7 @@ impl FontKit {
         #[cfg(wasi)]
         if let Some(fonts) = load_font_from_path(path.as_ref()) {
             for font in fonts {
-                self.fonts.push(font);
+                self.fonts.insert(font.key(), font);
             }
         }
         Ok(())
