@@ -64,6 +64,9 @@ impl Font {
         let mut height =
             (glyph.bbox.y_max as f32 * factor).ceil() - (glyph.bbox.y_min as f32 * factor).floor();
 
+        let mut stroke_x_min = (glyph.bbox.x_min as f32 * factor).floor();
+        let mut stroke_y_max = (glyph.bbox.y_max as f32 * factor).ceil();
+
         // try to render stroke
         let stroke_bitmap = if stroke_width > 0.0 {
             let mut filler = OutlineStrokeToFill::new(
@@ -79,11 +82,13 @@ impl Font {
             let bounds = outline.bounds();
             let width = (bounds.max_x() * factor).ceil() - (bounds.min_x() * factor).floor();
             let height = (bounds.max_y() * factor).ceil() - (bounds.min_y() * factor).floor();
+            stroke_x_min = (bounds.origin_x() * factor).floor();
+            stroke_y_max = ((bounds.size().y() + bounds.origin_y()) * factor).ceil();
             let mut ras = FontkitRas {
                 ras: Rasterizer::new(width as usize, height as usize),
                 factor,
-                x_min: (bounds.origin_x() * factor).floor(),
-                y_max: ((bounds.size().y() + bounds.origin_y()) * factor).ceil(),
+                x_min: stroke_x_min,
+                y_max: stroke_y_max,
                 prev: None,
                 start: None,
             };
@@ -128,6 +133,8 @@ impl Font {
             advanced_x,
             bitmap,
             stroke_bitmap,
+            stroke_x_correction: (glyph.bbox.x_min as f32 * factor).floor() - stroke_x_min,
+            stroke_y_correction: stroke_y_max - (glyph.bbox.y_max as f32 * factor).ceil(),
         })
     }
 }
@@ -314,6 +321,8 @@ pub struct GlyphBitmap {
     pub advanced_x: f32,
     pub bitmap: Vec<u8>,
     pub stroke_bitmap: Option<(Vec<u8>, u32)>,
+    pub stroke_x_correction: f32,
+    pub stroke_y_correction: f32,
 }
 
 impl GlyphBitmap {
