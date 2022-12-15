@@ -2,7 +2,8 @@ use crate::metrics::CharMetrics;
 use crate::*;
 use ab_glyph_rasterizer::{Point as AbPoint, Rasterizer};
 use pathfinder_content::outline::{Contour, ContourIterFlags, Outline};
-use pathfinder_content::stroke::{LineCap, LineJoin, OutlineStrokeToFill, StrokeStyle};
+pub use pathfinder_content::stroke::{LineCap, LineJoin};
+use pathfinder_content::stroke::{OutlineStrokeToFill, StrokeStyle};
 use pathfinder_geometry::vector::Vector2F;
 use ttf_parser::{OutlineBuilder, Rect};
 use usvg::PathData;
@@ -37,7 +38,14 @@ impl Font {
 
     /// Rasterize the outline of a glyph for a certain font_size, and a possible
     /// stroke. This method is costy
-    pub fn bitmap(&self, c: char, font_size: f32, stroke_width: f32) -> Option<GlyphBitmap> {
+    pub fn bitmap(
+        &self,
+        c: char,
+        font_size: f32,
+        stroke_width: f32,
+        line_join: Option<LineJoin>,
+        line_cap: Option<LineCap>,
+    ) -> Option<GlyphBitmap> {
         if !self.has_glyph(c) {
             return None;
         }
@@ -73,8 +81,8 @@ impl Font {
                 &outline,
                 StrokeStyle {
                     line_width: stroke_width / factor,
-                    line_cap: LineCap::default(),
-                    line_join: LineJoin::Miter(4.0),
+                    line_cap: line_cap.unwrap_or(LineCap::default()),
+                    line_join: line_join.unwrap_or(LineJoin::Miter(4.0)),
                 },
             );
             filler.offset();
