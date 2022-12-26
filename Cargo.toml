@@ -65,6 +65,7 @@ ras = [
     "pathfinder_simd",
     "usvg",
 ]
+optimize_stroke_broken = []
 # wit = ["wit-bindgen-rust", "dashmap"]
 
 [build-dependencies]
