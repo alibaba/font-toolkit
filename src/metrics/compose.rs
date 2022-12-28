@@ -432,14 +432,17 @@ where
         }
         let mut ellipsis_span = self.lines[0].spans[0].clone();
         let mut lines_height = 0.0;
-        self.lines = self
-            .lines
-            .clone()
-            .drain_filter(|line| {
-                lines_height += line.height();
-                height - lines_height >= -0.01
-            })
-            .collect();
+        let index = std::cmp::max(
+            1,
+            self.lines
+                .iter()
+                .position(|line| {
+                    lines_height += line.height();
+                    height - lines_height < -0.01
+                })
+                .unwrap_or(1),
+        );
+        self.lines.split_off(index);
 
         for line in &mut self.lines {
             line.hard_break = true;
@@ -449,19 +452,23 @@ where
         }
 
         if let Some(ref mut line) = self.lines.last_mut() {
+            let mut removed = false;
             while line.width() + postfix.width(ellipsis_span.size, ellipsis_span.letter_spacing)
                 - width
                 >= 0.01
                 && line.width() > 0.0
             {
+                removed = true;
                 let span = line.spans.last_mut().unwrap();
                 span.metrics.pop();
                 if span.metrics.positions.is_empty() {
                     line.spans.pop();
                 }
             }
-            ellipsis_span.metrics = postfix;
-            line.spans.push(ellipsis_span);
+            if removed {
+                ellipsis_span.metrics = postfix;
+                line.spans.push(ellipsis_span);
+            }
         }
     }
 }
