@@ -137,6 +137,10 @@ impl FontKey {
         }
     }
 
+    pub fn new_with_family(family: String) -> Self {
+        FontKey::new(family, 400, false, Width::from(5))
+    }
+
     /// Font stretch, same as css [font-stretch](https://developer.mozilla.org/en-US/docs/Web/CSS/font-stretch)
     #[cfg_attr(wasm, wasm_bindgen(js_name = "stretch"))]
     pub fn stretch(&self) -> String {
@@ -454,6 +458,14 @@ impl FontKit {
         font_key: Option<impl Fn(FontKey) -> FontKey + Send + Sync + 'static>,
     ) {
         self.fallback_font_key = font_key.map(|f| Box::new(f) as _);
+    }
+
+    #[cfg(not(wasm))]
+    pub fn font_keys(&self) -> impl Iterator<Item = FontKey> + '_ {
+        #[cfg(dashmap)]
+        return self.fonts.iter().map(|i| i.key().clone());
+        #[cfg(not(dashmap))]
+        self.fonts.keys()
     }
 
     #[cfg(feature = "metrics")]
