@@ -2,7 +2,9 @@ use crate::metrics::CharMetrics;
 use crate::*;
 use ab_glyph_rasterizer::{Point as AbPoint, Rasterizer};
 use pathfinder_content::outline::{Contour, ContourIterFlags, Outline};
+use pathfinder_content::segment::{Segment, SegmentFlags, SegmentKind};
 use pathfinder_content::stroke::{LineCap, LineJoin, OutlineStrokeToFill, StrokeStyle};
+use pathfinder_geometry::line_segment::LineSegment2F;
 use pathfinder_geometry::vector::Vector2F;
 use ttf_parser::{OutlineBuilder, Rect};
 use usvg::PathData;
@@ -69,6 +71,8 @@ impl Font {
 
         // try to render stroke
         let stroke_bitmap = if stroke_width > 0.0 {
+            #[cfg(feature = "optimize_stroke_broken")]
+            let outline = remove_obtuse_angle(&outline);
             let mut filler = OutlineStrokeToFill::new(
                 &outline,
                 StrokeStyle {
@@ -349,4 +353,61 @@ impl GlyphBitmap {
     pub fn y_max(&self) -> f32 {
         self.bbox.y_max as f32 * self.factor
     }
+}
+
+#[cfg(feature = "optimize_stroke_broken")]
+fn calc_distance(p1: Vector2F, p2: Vector2F) -> f32 {
+    ((p1.x() - p2.x()).powi(2) + (p1.y() - p2.y()).powi(2)).sqrt()
+}
+
+#[cfg(feature = "optimize_stroke_broken")]
+fn remove_obtuse_angle(outline: &Outline) -> Outline {
+    let mut segments: Vec<Segment> = vec![];
+    let mut head_index: usize = 0;
+    for contour in outline.contours() {
+        for (index, segment) in contour
+            .iter(ContourIterFlags::IGNORE_CLOSE_SEGMENT)
+            .enumerate()
+        {
+            if index == 0 {
+                head_index = segments.len();
+                segments.push(Segment {
+                    baseline: segment.baseline,
+                    ctrl: segment.ctrl,
+                    kind: SegmentKind::None,
+                    flags: SegmentFlags::FIRST_IN_SUBPATH,
+                });
+            }
+            let from = segment.baseline.from();
+            let to = segment.baseline.to();
+            if segment.is_quadratic() {
+                let ctrl = segment.ctrl.from();
+                let d = segment.baseline.square_length().sqrt();
+                let d1 = calc_distance(ctrl, from);
+                let d2 = calc_distance(ctrl, to);
+                if d1 <= 10.0 || d2 <= 10.0 {
+                    let mut cos = (d1 * d1 + d * d - d2 * d2) / 2.0 * d1 * d;
+                    if cos > 0.0 {
+                        cos = (d2 * d2 + d * d - d1 * d1) / 2.0 * d2 * d;
+                    }
+                    if cos <= 0.0 {
+                        segments.push(Segment::line(LineSegment2F::new(from, to)));
+                        continue;
+                    }
+                }
+            }
+            if segment.is_cubic() {
+                // TODO
+            }
+            segments.push(segment)
+        }
+        let mut last_seg = segments.last().unwrap().clone();
+        let first_seg_pos = segments[head_index].baseline.from();
+        if last_seg.kind == SegmentKind::Line && first_seg_pos == last_seg.baseline.to() {
+            segments.pop();
+        }
+        last_seg.flags = SegmentFlags::CLOSES_SUBPATH;
+        segments.push(last_seg);
+    }
+    Outline::from_segments(segments.into_iter())
 }
