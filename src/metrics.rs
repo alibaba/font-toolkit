@@ -106,7 +106,7 @@ impl Font {
     }
 
     /// Measure the metrics of a single unicode charactor
-    pub(crate) fn measure_char(&self, c: char) -> Option<CharMetrics> {
+    pub fn measure_char(&self, c: char) -> Option<CharMetrics> {
         let f = self.face.load();
         let f = f.as_ref().as_ref()?;
         let f = f.borrow_face();
@@ -255,6 +255,10 @@ impl TextMetrics {
 impl TextMetrics {
     pub fn positions(&self) -> &[PositionedChar] {
         &self.positions
+    }
+
+    pub fn positions_mut(&mut self) -> &mut [PositionedChar] {
+        &mut self.positions
     }
 }
 
