@@ -1,8 +1,20 @@
+# fontkit-rs
+
+<a href="https://github.com/alibaba/font-toolkit/actions"><img alt="GitHub CI Status" src="https://github.com/alibaba/font-toolkit/workflows/CI/badge.svg?branch=main"></a>
+<a href="https://www.npmjs.com/package/fontkit-rs"><img src="https://img.shields.io/npm/v/fontkit-rs.svg?sanitize=true" alt="fontkit-rs npm version"></a>
+<a href="https://npmcharts.com/compare/fontkit-rs?minimal=true"><img src="https://img.shields.io/npm/dm/fontkit-rs.svg?sanitize=true" alt="fontkit-rs downloads"></a>
+
 Toolkit used to load, match, measure and render texts.
 
 **NOTE: This project is a work in progress. Text measuring and positioning is a complex topic. A more mature library is a sensible choice.**
 
-Compile the module:
+## Installation
+
+```bash
+npm i fontkit-rs
+```
+
+## Compile the module:
 
 ```bash
 npm run build
@@ -10,7 +22,14 @@ npm run build:wasi
 node examples/node.mjs
 ```
 
-# Font querying
+### Build WASI
+
+```bash
+rustup target add wasm32-wasi
+npm run build:wasi
+```
+
+## Font querying
 
 This module uses a special font matching logic. A font's identity contains the font family (name),
 weight, italic, and stretch (font width). When querying, any subset of the memtioned information is allowed
@@ -22,7 +41,7 @@ could strim the result set, and:
 - If after any filter the result contains only one font, it is immediately returned.
 - If after all filters, 0 or more than 1 font are left, the query fails
 
-# General API (WASM API)
+## General API (WASM API)
 
 ### `new FontKit()`
 
@@ -69,7 +88,7 @@ Translate the path
 Export the glyph path as an SVG path string
 
 
-# Node.js Support
+## Node.js Support
 
 Currently this module supports Node.js via `WASI` [API](https://nodejs.org/docs/latest/api/wasi.html). This requires
 the `--experimental-wasi-unstable-preview1` flag and only limited APIs are provided.
