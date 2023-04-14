@@ -32,6 +32,11 @@ impl FontWasm {
     }
 
     #[wasm_bindgen(getter)]
+    pub fn key(&self) -> FontKey {
+        self.font().key()
+    }
+
+    #[wasm_bindgen(getter)]
     pub fn ascender(&self) -> i16 {
         self.font().ascender()
     }
