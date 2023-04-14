@@ -597,6 +597,10 @@ impl FontKit {
         self.fonts.values().find(|font| font.key == *key)
     }
 
+    pub fn remove(&self, key: &FontKey) {
+        self.fonts.remove(key);
+    }
+
     pub fn query(&self, key: &FontKey) -> Option<impl Deref<Target = Font> + '_> {
         let mut filters = vec![
             Filter::Family(&key.family),

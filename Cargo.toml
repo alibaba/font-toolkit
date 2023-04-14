@@ -1,6 +1,6 @@
 [package]
 name = "fontkit"
-version = "0.3.0-beta.2"
+version = "0.3.0"
 edition = "2021"
 authors = ["Zimon Dai <daizhuoxian@gmail.com>"]
 description = "A simple library for font loading and indexing"
@@ -37,7 +37,7 @@ ttf-parser = "0.17.1"
 unicode-bidi = { version = "0.3.7", optional = true }
 unicode-normalization = { version = "0.1.19", optional = true }
 unicode-script = { version = "0.5.4", optional = true }
-usvg = { version = "0.22.0", optional = true }
+usvg = { version = "0.31.0", optional = true }
 # wit-bindgen-rust = { git = "https://github.com/bytecodealliance/wit-bindgen", tag = "v0.2.0", optional = true }
 woff2 = { git = "https://github.com/zimond/woff2-rs", rev = "d3d93ea", optional = true, version = "0.3.0" }
 

@@ -77,7 +77,7 @@ impl<T> Span<T> {
 }
 
 /// Metrics of an area of rich-content text
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Area<T> {
     pub lines: Vec<Line<T>>,
 }
