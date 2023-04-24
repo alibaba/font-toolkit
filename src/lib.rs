@@ -830,13 +830,18 @@ pub unsafe extern "C" fn list_all_font(fontkit: *mut FontKit) -> *const u8 {
             #[cfg(not(dashmap))]
             let font = font.1;
             let key = font.key();
+            let path = match font.path().and_then(|p| p.to_str()).map(|p| p.to_string()) {
+                Some(p) => p,
+                None => "".to_string(),
+            };
             serde_json::json!({
                 "names": font.names,
                 "stretch": Width::from(key.stretch as u16).to_string(),
                 "italic": key.italic,
                 "weight": key.weight,
                 "family": key.family(),
-                "styleNames": font.style_names.clone()
+                "styleNames": font.style_names.clone(),
+                "path": path,
             })
         })
         .collect::<Vec<_>>();
