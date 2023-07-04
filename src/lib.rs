@@ -583,23 +583,6 @@ impl FontKit {
         Ok(())
     }
 
-    #[cfg(all(feature = "fontdb", not(wasm)))]
-    pub fn to_fontdb(&self) -> Result<fontdb::Database, Error> {
-        let mut db = fontdb::Database::new();
-        for font in &self.fonts {
-            #[cfg(not(dashmap))]
-            let font = font.1;
-            if let Some(face) = &**font.face.load() {
-                db.load_font_data(face.borrow_buffer().clone());
-                continue;
-            }
-            if let Some(path) = font.path.as_ref() {
-                db.load_font_file(path)?
-            }
-        }
-        Ok(db)
-    }
-
     pub fn exact_match(&self, key: &FontKey) -> Option<impl Deref<Target = Font> + '_> {
         #[cfg(dashmap)]
         return self.fonts.iter().find(|font| *font.key() == *key);
