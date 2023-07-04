@@ -1,4 +1,4 @@
-#![feature(doc_auto_cfg, drain_filter)]
+#![feature(doc_auto_cfg)]
 
 use arc_swap::ArcSwap;
 use ouroboros::self_referencing;
@@ -401,6 +401,8 @@ impl FontKit {
     /// Create a font registry
     #[cfg_attr(wasm, wasm_bindgen(constructor))]
     pub fn new() -> Self {
+        #[cfg(wasm)]
+        console_error_panic_hook::set_once();
         FontKit {
             #[cfg(not(dashmap))]
             fonts: HashMap::new(),
@@ -446,6 +448,12 @@ impl FontKit {
         })
     }
 
+    #[cfg(wasm)]
+    #[wasm_bindgen(js_name = "font_keys")]
+    pub fn font_keys_wasm(&self) -> js_sys::Array {
+        self.font_keys().map(|key| JsValue::from(key)).collect()
+    }
+
     pub fn len(&self) -> usize {
         self.fonts.len()
     }
@@ -458,14 +466,6 @@ impl FontKit {
         font_key: Option<impl Fn(FontKey) -> FontKey + Send + Sync + 'static>,
     ) {
         self.fallback_font_key = font_key.map(|f| Box::new(f) as _);
-    }
-
-    #[cfg(not(wasm))]
-    pub fn font_keys(&self) -> impl Iterator<Item = FontKey> + '_ {
-        #[cfg(dashmap)]
-        return self.fonts.iter().map(|i| i.key().clone());
-        #[cfg(not(dashmap))]
-        self.fonts.keys()
     }
 
     #[cfg(feature = "metrics")]
@@ -544,6 +544,16 @@ impl FontKit {
                 key
             })
             .collect::<Vec<_>>())
+    }
+
+    pub fn font_keys(&self) -> impl Iterator<Item = FontKey> + '_ {
+        #[cfg(dashmap)]
+        return self.fonts.iter().map(|i| {
+            log::info!("{:?}", i.names);
+            i.key().clone()
+        });
+        #[cfg(not(dashmap))]
+        self.fonts.keys()
     }
 
     /// Recursively scan a local path for fonts, this method will not store the

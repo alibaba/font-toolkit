@@ -442,7 +442,7 @@ where
                 })
                 .unwrap_or(1),
         );
-        self.lines.split_off(index);
+        let _ = self.lines.split_off(index);
 
         for line in &mut self.lines {
             line.hard_break = true;

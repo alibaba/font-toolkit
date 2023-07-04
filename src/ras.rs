@@ -2,13 +2,14 @@ use crate::metrics::CharMetrics;
 use crate::*;
 use ab_glyph_rasterizer::{Point as AbPoint, Rasterizer};
 use pathfinder_content::outline::{Contour, ContourIterFlags, Outline};
+#[cfg(feature = "optimize_stroke_broken")]
 use pathfinder_content::segment::{Segment, SegmentFlags, SegmentKind};
 use pathfinder_content::stroke::{LineCap, LineJoin, OutlineStrokeToFill, StrokeStyle};
+#[cfg(feature = "optimize_stroke_broken")]
 use pathfinder_geometry::line_segment::LineSegment2F;
 use pathfinder_geometry::vector::Vector2F;
+use tiny_skia_path::PathBuilder as PathData;
 use ttf_parser::{OutlineBuilder, Rect};
-use usvg::PathData;
-pub use usvg::PathSegment;
 
 impl Font {
     /// Output the outline instructions of a glyph
@@ -168,7 +169,7 @@ impl PathBuilder {
 
 impl OutlineBuilder for PathBuilder {
     fn move_to(&mut self, x: f32, y: f32) {
-        self.path.push_move_to(x as f64, y as f64);
+        self.path.move_to(x, y);
         let mut c = Contour::new();
         c.push_endpoint(Vector2F::new(x, y));
         self.contour = c;
@@ -176,14 +177,13 @@ impl OutlineBuilder for PathBuilder {
 
     fn line_to(&mut self, x: f32, y: f32) {
         self.contour.push_endpoint(Vector2F::new(x, y));
-        self.path.push_line_to(x as f64, y as f64);
+        self.path.line_to(x, y);
     }
 
     fn quad_to(&mut self, x1: f32, y1: f32, x: f32, y: f32) {
         self.contour
             .push_quadratic(Vector2F::new(x1, y1), Vector2F::new(x, y));
-        self.path
-            .push_quad_to(x1 as f64, y1 as f64, x as f64, y as f64);
+        self.path.quad_to(x1, y1, x, y);
     }
 
     fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
@@ -192,16 +192,14 @@ impl OutlineBuilder for PathBuilder {
             Vector2F::new(x2, y2),
             Vector2F::new(x, y),
         );
-        self.path.push_curve_to(
-            x1 as f64, y1 as f64, x2 as f64, y2 as f64, x as f64, y as f64,
-        );
+        self.path.cubic_to(x1, y1, x2, y2, x, y);
     }
 
     fn close(&mut self) {
         self.contour.close();
         let c = std::mem::replace(&mut self.contour, Contour::new());
         self.outline.push_contour(c);
-        self.path.push_close_path();
+        self.path.close();
     }
 }
 

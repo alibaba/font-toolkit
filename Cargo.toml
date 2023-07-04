@@ -12,15 +12,15 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 ab_glyph_rasterizer = { version = "0.1.5", optional = true }
-arc-swap = "1.5.0"
+arc-swap = "1.6.0"
 brotli-decompressor = { version = "2.3.2", optional = true }
 byteorder = { version = "1.4.3", optional = true }
 dashmap = { version = "5.3.4", optional = true }
 flate2 = { version = "1.0.22", optional = true }
-fontdb = { version = "0.9.1", optional = true }
+fontdb = { version = "0.14.1", optional = true }
 infer = { version = "0.9.0", git = "https://github.com/zimond/infer" }
 log = "0.4.17"
-ouroboros = "0.14.2"
+ouroboros = "0.17.0"
 pathfinder_content = { version = "0.5.0", optional = true }
 pathfinder_geometry = { version = "0.5.1", optional = true }
 pathfinder_simd = { version = "0.5.1", optional = true, features = [
@@ -33,21 +33,22 @@ textwrap = { version = "0.15.0", optional = true, default-features = false, feat
     "unicode-linebreak",
 ] }
 thiserror = "1.0.30"
-ttf-parser = "0.17.1"
+tiny-skia-path = "0.11.1"
+tsify = { version = "0.4.5", default-features = false, features = ["js"] }
+ttf-parser = "0.19.1"
 unicode-bidi = { version = "0.3.7", optional = true }
 unicode-normalization = { version = "0.1.19", optional = true }
 unicode-script = { version = "0.5.4", optional = true }
-usvg = { version = "0.31.0", optional = true }
 # wit-bindgen-rust = { git = "https://github.com/bytecodealliance/wit-bindgen", tag = "v0.2.0", optional = true }
 woff2 = { git = "https://github.com/zimond/woff2-rs", rev = "d3d93ea", optional = true, version = "0.3.0" }
 
 [target.'cfg(not(all(target_os = "unknown", target_arch = "wasm32")))'.dependencies]
 walkdir = "2.3.1"
-console_error_panic_hook = "0.1.7"
 
 [target.'cfg(all(target_os = "unknown", target_arch = "wasm32"))'.dependencies]
 wasm-bindgen = "0.2.79"
 js-sys = "0.3.56"
+console_error_panic_hook = "0.1.7"
 
 [features]
 default = ["woff", "woff2", "fontdb", "metrics", "ras", "dashmap"]
@@ -63,7 +64,6 @@ ras = [
     "pathfinder_content",
     "pathfinder_geometry",
     "pathfinder_simd",
-    "usvg",
 ]
 optimize_stroke_broken = []
 # wit = ["wit-bindgen-rust", "dashmap"]
