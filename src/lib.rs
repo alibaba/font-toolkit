@@ -18,6 +18,8 @@ use ttf_parser::{Face, Width as ParserWidth};
 // #[cfg(not(wasm))]
 // use walkdir::WalkDir;
 #[cfg(wasm)]
+use tsify::Tsify;
+#[cfg(wasm)]
 use wasm_bindgen::prelude::*;
 
 mod conv;
@@ -35,65 +37,55 @@ pub use metrics::*;
 #[cfg(feature = "ras")]
 pub use ras::*;
 
-#[cfg_attr(wasm, wasm_bindgen)]
-pub struct Width(ParserWidth);
+#[cfg_attr(wasm, derive(Tsify, Serialize, Deserialize))]
+#[cfg_attr(wasm, tsify(into_wasm_abi, from_wasm_abi))]
+pub struct Width(u16);
 
-#[cfg_attr(wasm, wasm_bindgen)]
-impl Width {
-    #[cfg_attr(wasm, wasm_bindgen(constructor))]
-    pub fn new(width: String) -> Self {
-        width.parse().unwrap()
-    }
-}
+#[cfg_attr(wasm, derive(Tsify, Serialize, Deserialize))]
+#[cfg_attr(wasm, tsify(into_wasm_abi, from_wasm_abi))]
+pub struct FontKeyArray(Vec<FontKey>);
 
 impl FromStr for Width {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Width(match s {
-            "ultra-condensed" => ParserWidth::UltraCondensed,
-            "condensed" => ParserWidth::Condensed,
-            "normal" => ParserWidth::Normal,
-            "expanded" => ParserWidth::Expanded,
-            "ultra-expanded" => ParserWidth::UltraExpanded,
-            "extra-condensed" => ParserWidth::ExtraCondensed,
-            "semi-condensed" => ParserWidth::SemiCondensed,
-            "semi-expanded" => ParserWidth::SemiExpanded,
-            "extra-expanded" => ParserWidth::ExtraExpanded,
-            _ => ParserWidth::Normal,
-        }))
+        Ok(Width(
+            match s {
+                "ultra-condensed" => ParserWidth::UltraCondensed,
+                "condensed" => ParserWidth::Condensed,
+                "normal" => ParserWidth::Normal,
+                "expanded" => ParserWidth::Expanded,
+                "ultra-expanded" => ParserWidth::UltraExpanded,
+                "extra-condensed" => ParserWidth::ExtraCondensed,
+                "semi-condensed" => ParserWidth::SemiCondensed,
+                "semi-expanded" => ParserWidth::SemiExpanded,
+                "extra-expanded" => ParserWidth::ExtraExpanded,
+                _ => ParserWidth::Normal,
+            }
+            .to_number(),
+        ))
     }
 }
 
 impl From<u16> for Width {
     fn from(stretch: u16) -> Self {
-        Width(match stretch {
-            1 => ParserWidth::UltraCondensed,
-            2 => ParserWidth::ExtraCondensed,
-            3 => ParserWidth::Condensed,
-            4 => ParserWidth::SemiCondensed,
-            5 => ParserWidth::Normal,
-            6 => ParserWidth::SemiExpanded,
-            7 => ParserWidth::Expanded,
-            8 => ParserWidth::ExtraExpanded,
-            9 => ParserWidth::UltraExpanded,
-            _ => ParserWidth::Normal,
-        })
+        Width(stretch)
     }
 }
 
 impl ToString for Width {
     fn to_string(&self) -> String {
         match self.0 {
-            ParserWidth::UltraCondensed => "ultra-condensed",
-            ParserWidth::Condensed => "condensed",
-            ParserWidth::Normal => "normal",
-            ParserWidth::Expanded => "expanded",
-            ParserWidth::UltraExpanded => "ultra-expanded",
-            ParserWidth::ExtraCondensed => "extra-condensed",
-            ParserWidth::SemiCondensed => "semi-condensed",
-            ParserWidth::SemiExpanded => "semi-expanded",
-            ParserWidth::ExtraExpanded => "extra-expanded",
+            1 => "ultra-condensed",
+            2 => "extra-condensed",
+            3 => "condensed",
+            4 => "semi-condensed",
+            5 => "normal",
+            6 => "semi-expanded",
+            7 => "expanded",
+            8 => "extra-expanded",
+            9 => "ultra-expanded",
+            _ => "normal",
         }
         .to_string()
     }
@@ -101,17 +93,40 @@ impl ToString for Width {
 
 impl Default for Width {
     fn default() -> Self {
-        Width(ParserWidth::Normal)
+        Width(5)
     }
 }
 
-#[cfg_attr(wasm, wasm_bindgen)]
+impl Width {
+    pub fn to_number(&self) -> u16 {
+        self.0
+    }
+}
+
+// https://github.com/serde-rs/serde/issues/368
+struct GenericDefault<const U: u32>;
+
+impl<const U: u32> GenericDefault<U> {
+    fn value() -> u32 {
+        U
+    }
+}
+
+#[cfg_attr(wasm, derive(Tsify))]
+#[cfg_attr(wasm, tsify(into_wasm_abi, from_wasm_abi))]
 #[derive(Clone, Hash, PartialEq, PartialOrd, Eq, Debug, Default, Serialize, Deserialize)]
 pub struct FontKey {
-    weight: u32,
-    italic: bool,
-    stretch: u32,
-    family: String,
+    /// Font weight, same as CSS [font-weight](https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight#common_weight_name_mapping)
+    #[serde(default = "GenericDefault::<400>::value")]
+    pub weight: u32,
+    /// Italic or not, boolean
+    #[serde(default)]
+    pub italic: bool,
+    /// Font stretch, same as css [font-stretch](https://developer.mozilla.org/en-US/docs/Web/CSS/font-stretch)
+    #[serde(default = "GenericDefault::<5>::value")]
+    pub stretch: u32,
+    /// Font family string
+    pub family: String,
 }
 
 impl fmt::Display for FontKey {
@@ -121,60 +136,6 @@ impl fmt::Display for FontKey {
             "FontKey({}, {}, {}, {})",
             self.family, self.weight, self.italic, self.stretch
         )
-    }
-}
-
-#[cfg_attr(wasm, wasm_bindgen)]
-impl FontKey {
-    #[cfg_attr(wasm, wasm_bindgen(constructor))]
-    pub fn new(family: String, weight: u32, italic: bool, stretch: Width) -> Self {
-        FontKey {
-            family,
-            weight,
-            italic,
-            stretch: stretch.0.to_number() as u32,
-        }
-    }
-
-    pub fn new_with_family(family: String) -> Self {
-        FontKey::new(family, 400, false, Width::from(5))
-    }
-
-    /// Font stretch, same as css [font-stretch](https://developer.mozilla.org/en-US/docs/Web/CSS/font-stretch)
-    #[cfg_attr(wasm, wasm_bindgen(js_name = "stretch"))]
-    pub fn stretch(&self) -> String {
-        Width::from(self.stretch as u16).to_string()
-    }
-
-    /// Font family string
-    pub fn family(&self) -> String {
-        self.family.clone()
-    }
-
-    /// Font weight, same as CSS [font-weight](https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight#common_weight_name_mapping)
-    pub fn weight(&self) -> u32 {
-        self.weight
-    }
-
-    /// Italic or not, boolean
-    pub fn italic(&self) -> bool {
-        self.italic
-    }
-
-    pub fn set_weight(&mut self, weight: u32) {
-        self.weight = weight;
-    }
-
-    pub fn set_italic(&mut self, italic: bool) {
-        self.italic = italic;
-    }
-
-    pub fn set_stretch(&mut self, stretch: Width) {
-        self.stretch = stretch.0.to_number() as u32;
-    }
-
-    pub fn set_family(&mut self, family: String) {
-        self.family = family;
     }
 }
 
@@ -419,18 +380,14 @@ impl FontKit {
     /// returned.
     #[cfg(wasm)]
     #[wasm_bindgen(js_name = "add_font_from_buffer")]
-    pub fn add_font_from_buffer_wasm(&mut self, buffer: Vec<u8>) -> Result<js_sys::Array, JsValue> {
-        Ok(js_sys::Array::from_iter(
-            self.add_font_from_buffer(buffer)?
-                .into_iter()
-                .map(JsValue::from),
-        ))
+    pub fn add_font_from_buffer_wasm(&mut self, buffer: Vec<u8>) -> Result<FontKeyArray, JsValue> {
+        Ok(FontKeyArray(self.add_font_from_buffer(buffer)?))
     }
 
     #[cfg(wasm)]
     #[wasm_bindgen(js_name = "query")]
-    pub fn query_wasm(&self, key: &FontKey) -> Option<wasm::FontWasm> {
-        let font = self.query(key)?;
+    pub fn query_wasm(&self, key: FontKey) -> Option<wasm::FontWasm> {
+        let font = self.query(&key)?;
         let font = font.deref();
         Some(wasm::FontWasm {
             ptr: font as *const _,
@@ -439,8 +396,8 @@ impl FontKit {
 
     #[cfg(wasm)]
     #[wasm_bindgen(js_name = "exact_match")]
-    pub fn exact_match_wasm(&self, key: &FontKey) -> Option<wasm::FontWasm> {
-        let font = self.exact_match(key)?;
+    pub fn exact_match_wasm(&self, key: FontKey) -> Option<wasm::FontWasm> {
+        let font = self.exact_match(&key)?;
         let font = font.deref();
         Some(wasm::FontWasm {
             ptr: font as *const _,
@@ -449,8 +406,8 @@ impl FontKit {
 
     #[cfg(wasm)]
     #[wasm_bindgen(js_name = "font_keys")]
-    pub fn font_keys_wasm(&self) -> js_sys::Array {
-        self.font_keys().map(|key| JsValue::from(key)).collect()
+    pub fn font_keys_wasm(&self) -> FontKeyArray {
+        FontKeyArray(self.font_keys().collect())
     }
 
     pub fn len(&self) -> usize {
@@ -468,7 +425,7 @@ impl FontKit {
     }
 
     #[cfg(feature = "metrics")]
-    pub fn measure(&self, font_key: &FontKey, text: &str) -> Option<TextMetrics> {
+    pub fn measure(&self, font_key: FontKey, text: &str) -> Option<TextMetrics> {
         match self
             .query(&font_key)
             .and_then(|font| font.measure(text).ok())
@@ -735,7 +692,12 @@ pub unsafe extern "C" fn font_for_face(
     let fontkit = &mut *fontkit;
     let font_face = std::slice::from_raw_parts(font_face, len);
     let font_face = std::str::from_utf8_unchecked(font_face);
-    let key = FontKey::new(font_face.to_string(), weight, italic, stretch.into());
+    let key = FontKey {
+        family: font_face.to_string(),
+        weight,
+        italic,
+        stretch: stretch as u32,
+    };
     let font = fontkit.query(&key);
     match font {
         Some(font) => font.deref() as *const _ as *const u8,
@@ -835,7 +797,7 @@ pub unsafe extern "C" fn list_all_font(fontkit: *mut FontKit) -> *const u8 {
                 "stretch": Width::from(key.stretch as u16).to_string(),
                 "italic": key.italic,
                 "weight": key.weight,
-                "family": key.family(),
+                "family": key.family,
                 "styleNames": font.style_names.clone(),
                 "path": path,
             })

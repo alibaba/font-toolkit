@@ -16,7 +16,7 @@
   "license": "MIT",
   "types": "./pkg/bundler/index.d.ts",
   "scripts": {
-    "build": "wasm-pack build --target nodejs --out-name index --out-dir pkg/node --release && wasm-pack build --target nodejs --out-name index --out-dir pkg/node --release && rm -rf pkg/bundler/package.json",
+    "build": "wasm-pack build --target bundler --out-name index --out-dir pkg/bundler --release && wasm-pack build --target nodejs --out-name index --out-dir pkg/node --release && rm -rf pkg/bundler/package.json",
     "build:wasi": "cargo build --release --target wasm32-wasi && mkdir -p pkg/wasi && cp target/wasm32-wasi/release/fontkit.wasm pkg/wasi/",
     "test": "ava",
     "format:rs": "cargo fmt",
