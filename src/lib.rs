@@ -2,6 +2,7 @@
 
 use arc_swap::ArcSwap;
 use ouroboros::self_referencing;
+use serde::{Deserialize, Serialize};
 #[cfg(not(wasm))]
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -105,9 +106,7 @@ impl Default for Width {
 }
 
 #[cfg_attr(wasm, wasm_bindgen)]
-#[cfg_attr(features = "serde", serde::Serialize)]
-#[cfg_attr(features = "serde", serde::Deserialize)]
-#[derive(Clone, Hash, PartialEq, PartialOrd, Eq, Debug, Default)]
+#[derive(Clone, Hash, PartialEq, PartialOrd, Eq, Debug, Default, Serialize, Deserialize)]
 pub struct FontKey {
     weight: u32,
     italic: bool,
@@ -179,7 +178,7 @@ impl FontKey {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, Serialize)]
 struct Name {
     pub name: String,
     #[allow(unused)]
