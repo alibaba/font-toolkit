@@ -380,7 +380,10 @@ impl FontKit {
     /// returned.
     #[cfg(wasm)]
     #[wasm_bindgen(js_name = "add_font_from_buffer")]
-    pub fn add_font_from_buffer_wasm(&mut self, buffer: Vec<u8>) -> Result<FontKeyArray, JsValue> {
+    pub fn add_font_from_buffer_wasm(
+        &mut self,
+        buffer: Vec<u8>,
+    ) -> Result<FontKeyArray, js_sys::Error> {
         Ok(FontKeyArray(self.add_font_from_buffer(buffer)?))
     }
 

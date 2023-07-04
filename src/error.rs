@@ -30,8 +30,8 @@ impl From<Error> for napi::Error {
 }
 
 #[cfg(wasm)]
-impl From<Error> for wasm_bindgen::JsValue {
+impl From<Error> for js_sys::Error {
     fn from(e: Error) -> Self {
-        js_sys::TypeError::new(&format!("{}", e)).into()
+        js_sys::Error::new(&format!("{}", e)).into()
     }
 }
