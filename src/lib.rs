@@ -11,7 +11,6 @@ use std::ops::Deref;
 #[cfg(not(wasm))]
 use std::path::Path;
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::sync::Arc;
 pub use ttf_parser::LineMetrics;
 use ttf_parser::{Face, Width as ParserWidth};
@@ -37,71 +36,43 @@ pub use metrics::*;
 #[cfg(feature = "ras")]
 pub use ras::*;
 
-#[cfg_attr(wasm, derive(Tsify, Serialize, Deserialize))]
-#[cfg_attr(wasm, tsify(into_wasm_abi, from_wasm_abi))]
-pub struct Width(u16);
+#[cfg_attr(wasm, wasm_bindgen)]
+pub fn str_width_to_number(width: &str) -> u16 {
+    match width {
+        "ultra-condensed" => ParserWidth::UltraCondensed,
+        "condensed" => ParserWidth::Condensed,
+        "normal" => ParserWidth::Normal,
+        "expanded" => ParserWidth::Expanded,
+        "ultra-expanded" => ParserWidth::UltraExpanded,
+        "extra-condensed" => ParserWidth::ExtraCondensed,
+        "semi-condensed" => ParserWidth::SemiCondensed,
+        "semi-expanded" => ParserWidth::SemiExpanded,
+        "extra-expanded" => ParserWidth::ExtraExpanded,
+        _ => ParserWidth::Normal,
+    }
+    .to_number()
+}
+
+#[cfg_attr(wasm, wasm_bindgen)]
+pub fn number_width_to_str(width: u16) -> String {
+    match width {
+        1 => "ultra-condensed",
+        2 => "extra-condensed",
+        3 => "condensed",
+        4 => "semi-condensed",
+        5 => "normal",
+        6 => "semi-expanded",
+        7 => "expanded",
+        8 => "extra-expanded",
+        9 => "ultra-expanded",
+        _ => "normal",
+    }
+    .to_string()
+}
 
 #[cfg_attr(wasm, derive(Tsify, Serialize, Deserialize))]
 #[cfg_attr(wasm, tsify(into_wasm_abi, from_wasm_abi))]
 pub struct FontKeyArray(Vec<FontKey>);
-
-impl FromStr for Width {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Width(
-            match s {
-                "ultra-condensed" => ParserWidth::UltraCondensed,
-                "condensed" => ParserWidth::Condensed,
-                "normal" => ParserWidth::Normal,
-                "expanded" => ParserWidth::Expanded,
-                "ultra-expanded" => ParserWidth::UltraExpanded,
-                "extra-condensed" => ParserWidth::ExtraCondensed,
-                "semi-condensed" => ParserWidth::SemiCondensed,
-                "semi-expanded" => ParserWidth::SemiExpanded,
-                "extra-expanded" => ParserWidth::ExtraExpanded,
-                _ => ParserWidth::Normal,
-            }
-            .to_number(),
-        ))
-    }
-}
-
-impl From<u16> for Width {
-    fn from(stretch: u16) -> Self {
-        Width(stretch)
-    }
-}
-
-impl ToString for Width {
-    fn to_string(&self) -> String {
-        match self.0 {
-            1 => "ultra-condensed",
-            2 => "extra-condensed",
-            3 => "condensed",
-            4 => "semi-condensed",
-            5 => "normal",
-            6 => "semi-expanded",
-            7 => "expanded",
-            8 => "extra-expanded",
-            9 => "ultra-expanded",
-            _ => "normal",
-        }
-        .to_string()
-    }
-}
-
-impl Default for Width {
-    fn default() -> Self {
-        Width(5)
-    }
-}
-
-impl Width {
-    pub fn to_number(&self) -> u16 {
-        self.0
-    }
-}
 
 // https://github.com/serde-rs/serde/issues/368
 struct GenericDefault<const U: u32>;
@@ -797,7 +768,7 @@ pub unsafe extern "C" fn list_all_font(fontkit: *mut FontKit) -> *const u8 {
             };
             serde_json::json!({
                 "names": font.names,
-                "stretch": Width::from(key.stretch as u16).to_string(),
+                "stretch": number_width_to_str(key.stretch as u16),
                 "italic": key.italic,
                 "weight": key.weight,
                 "family": key.family,
