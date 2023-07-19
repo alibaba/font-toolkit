@@ -5,7 +5,9 @@ use ouroboros::self_referencing;
 use serde::{Deserialize, Serialize};
 #[cfg(not(wasm))]
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+#[cfg(not(dashmap))]
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fmt;
 use std::ops::Deref;
 #[cfg(not(wasm))]
@@ -120,8 +122,10 @@ struct Name {
 #[derive(Clone)]
 pub struct Font {
     key: FontKey,
+    #[allow(unused)]
     index: u32,
     names: Vec<Name>,
+    #[allow(unused)]
     style_names: Vec<Name>,
     face: Arc<ArcSwap<Option<StaticFace>>>,
     path: Option<PathBuf>,
@@ -622,7 +626,7 @@ enum Filter<'a> {
 
 #[cfg(not(wasm))]
 std::thread_local! {
-    static ALLOCS: RefCell<HashMap<u64, usize>> = RefCell::new(HashMap::new());
+    static ALLOCS: RefCell<std::collections::HashMap<u64, usize>> = RefCell::new(std::collections::HashMap::new());
 }
 
 #[cfg(not(wasm))]
