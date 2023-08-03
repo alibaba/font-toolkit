@@ -772,7 +772,7 @@ pub unsafe extern "C" fn list_all_font(fontkit: *mut FontKit) -> *const u8 {
             };
             serde_json::json!({
                 "names": font.names,
-                "stretch": number_width_to_str(key.stretch as u16),
+                "stretch": key.stretch,
                 "italic": key.italic,
                 "weight": key.weight,
                 "family": key.family,
