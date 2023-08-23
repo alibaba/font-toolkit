@@ -50,6 +50,12 @@ impl FontWasm {
     pub fn units_per_em(&self) -> u16 {
         self.font().units_per_em()
     }
+
+    pub fn advanced_x(&self, c: char) -> Option<u16> {
+        let font = self.font();
+        let (glyph, _) = font.outline(c)?;
+        Some(glyph.advanced_x)
+    }
 }
 
 #[wasm_bindgen]
