@@ -55,6 +55,9 @@ pub struct Span<T> {
 
 impl<T> Span<T> {
     fn width(&self) -> f32 {
+        if self.metrics.positions.is_empty() {
+            return 0.0;
+        }
         let mut width = self.metrics.width(self.size, self.letter_spacing);
         if self.swallow_leading_space && self.metrics.positions[0].metrics.c == ' ' {
             let c = &self.metrics.positions[0];
@@ -291,7 +294,7 @@ where
                     let mut current_real_index = real_index;
                     while span.metrics.positions()[current_real_index].metrics.c == ' '
                         && span_values
-                            .get(current_real_index)
+                            .get(current_real_index - real_index)
                             .map(|c| *c != ' ')
                             .unwrap_or(true)
                     {
@@ -303,9 +306,9 @@ where
                     }
                     let factor = span.size / span.metrics.units() as f32;
                     let range = if rtl {
-                        (current_real_index + 1 - count)..total_count
+                        (current_real_index + 1 - count)..current_real_index
                     } else {
-                        0..(current_real_index + count)
+                        current_real_index..(current_real_index + count)
                     };
                     let acc_seg_width = range
                         .map(|index| span.metrics.positions.get(index).unwrap())
@@ -315,20 +318,39 @@ where
                                 + p.metrics.advanced_x as f32 * factor
                                 + span.letter_spacing
                         });
-                    if current_line_width + acc_seg_width <= width {
+                    let acc_seg_width_with_space = if current_real_index == real_index {
+                        acc_seg_width
+                    } else {
+                        let range = if rtl {
+                            (current_real_index + 1 - count)..real_index
+                        } else {
+                            real_index..(current_real_index + count)
+                        };
+                        range
+                            .map(|index| span.metrics.positions.get(index).unwrap())
+                            .fold(0.0, |current, p| {
+                                current
+                                    + p.kerning as f32 * factor
+                                    + p.metrics.advanced_x as f32 * factor
+                                    + span.letter_spacing
+                            })
+                    };
+                    if current_line_width + acc_seg_width_with_space <= width {
                         if rtl {
                             real_index = current_real_index - count;
                         } else {
                             real_index = current_real_index + count;
                         }
+                        current_line_width += acc_seg_width;
                     } else {
+                        real_index = current_real_index;
                         break;
                     }
                 }
                 if (real_index == 0 && !rtl)
                     || (rtl && real_index == span.metrics.positions.len() - 1)
                 {
-                    real_index = naive_break_index
+                    real_index = naive_break_index;
                 }
 
                 // Split here, create a new span
