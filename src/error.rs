@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::PositionedChar;
+
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("Unrecognized buffer")]
@@ -20,6 +22,11 @@ pub enum Error {
     #[cfg(feature = "woff2")]
     #[error(transparent)]
     Woff2(#[from] woff2::decode::DecodeError),
+    #[error("Metrics mismatch: values {value:?} metrics {metrics:?}")]
+    MetricsMismatch {
+        value: Vec<char>,
+        metrics: Vec<PositionedChar>,
+    },
 }
 
 #[cfg(node)]

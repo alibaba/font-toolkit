@@ -4,7 +4,7 @@ use textwrap::Options;
 use textwrap::WordSplitter::NoHyphenation;
 use unicode_normalization::UnicodeNormalization;
 
-use crate::{FontKey, TextMetrics};
+use crate::{Error, FontKey, TextMetrics};
 
 #[derive(Debug, Clone)]
 pub struct Line<T> {
@@ -156,7 +156,7 @@ where
         }
     }
 
-    pub fn wrap_text(&mut self, width: f32) {
+    pub fn wrap_text(&mut self, width: f32) -> Result<(), Error> {
         let rtl = self.lines.iter().all(|line| {
             line.spans.iter().all(|span| {
                 span.metrics
@@ -232,7 +232,7 @@ where
                 if approved_spans.is_empty() {
                     if failed_with_no_acception {
                         // Failed to fit a span twice, fail
-                        return;
+                        return Ok(());
                     } else {
                         failed_with_no_acception = true;
                     }
@@ -374,14 +374,18 @@ where
                 if !span.metrics.value.is_empty() {
                     current_line.spans.push(span.clone());
                 }
-                assert_eq!(
-                    span.metrics.value.nfc().count(),
-                    span.metrics.positions.len()
-                );
-                assert_eq!(
-                    new_span.metrics.value.nfc().count(),
-                    new_span.metrics.positions.len()
-                );
+                if span.metrics.value.nfc().count() != span.metrics.positions.len() {
+                    return Err(Error::MetricsMismatch {
+                        value: span.metrics.value.nfc().collect(),
+                        metrics: span.metrics.positions.clone(),
+                    });
+                }
+                if new_span.metrics.value.nfc().count() != new_span.metrics.positions.len() {
+                    return Err(Error::MetricsMismatch {
+                        value: new_span.metrics.value.nfc().collect(),
+                        metrics: new_span.metrics.positions.clone(),
+                    });
+                }
                 // Create a new line
                 result.push(std::mem::replace(
                     &mut current_line,
@@ -413,10 +417,11 @@ where
             result.push(current_line);
         }
         if result.is_empty() || result[0].spans.is_empty() {
-            return;
+            return Ok(());
         }
         self.lines = result;
         log::trace!("adjust result: {}", self.value_string());
+        Ok(())
     }
 
     pub fn valid(&self) -> bool {
