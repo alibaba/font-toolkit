@@ -1,6 +1,7 @@
 #![feature(doc_auto_cfg)]
 
 use arc_swap::ArcSwap;
+use byteorder::{BigEndian, ReadBytesExt};
 use ouroboros::self_referencing;
 use serde::{Deserialize, Serialize};
 #[cfg(not(wasm))]
@@ -9,13 +10,14 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
+use std::io::Read;
 use std::ops::Deref;
 #[cfg(not(wasm))]
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 pub use ttf_parser::LineMetrics;
-use ttf_parser::{Face, Width as ParserWidth};
+use ttf_parser::{Face, Fixed, Tag, Width as ParserWidth};
 // #[cfg(not(wasm))]
 // use walkdir::WalkDir;
 #[cfg(wasm)]
@@ -114,9 +116,23 @@ impl fmt::Display for FontKey {
 
 #[derive(Clone, Debug, Serialize)]
 struct Name {
+    pub id: u16,
     pub name: String,
     #[allow(unused)]
     pub language_id: u16,
+}
+
+struct FvarInstanceRecord {
+    sub_family_name_id: u16,
+    coords: Vec<Fixed>,
+    postscript_name_id: u16,
+}
+
+#[derive(Clone, Debug)]
+struct FvarInstance {
+    sub_family: Name,
+    coords: Vec<Fixed>,
+    postscript: Name,
 }
 
 #[derive(Clone)]
@@ -129,6 +145,8 @@ pub struct Font {
     style_names: Vec<Name>,
     face: Arc<ArcSwap<Option<StaticFace>>>,
     path: Option<PathBuf>,
+    /// [Font variation](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar) data
+    fvar: Vec<FvarInstance>,
 }
 
 impl Font {
@@ -184,6 +202,7 @@ impl Font {
                 })?;
                 if id == name_id::TYPOGRAPHIC_SUBFAMILY {
                     style_names.push(Name {
+                        id,
                         name: name_str.clone(),
                         language_id: name.language_id,
                     });
@@ -197,6 +216,7 @@ impl Font {
                         name_str = name_str.replace(" ", "-");
                     }
                     Some(Name {
+                        id,
                         name: name_str,
                         language_id: name.language_id,
                     })
@@ -205,6 +225,85 @@ impl Font {
                 }
             })
             .collect::<Vec<_>>();
+        let mut fvar = vec![];
+        if let (Some(_), Some(name_table)) = (
+            face.borrow_face().tables().fvar,
+            face.borrow_face().tables().name,
+        ) {
+            // currently ttf-parser is missing `fvar`'s instance records, we parse them
+            // directly from `RawFace`
+            let data: &[u8] = face
+                .borrow_face()
+                .raw_face()
+                .table(Tag::from_bytes(b"fvar"))
+                .unwrap();
+            let mut raw = &*data;
+            let _version = raw.read_u32::<BigEndian>()?;
+            let axis_offset = raw.read_u16::<BigEndian>()?;
+            let _ = raw.read_u16::<BigEndian>()?;
+            let axis_count = raw.read_u16::<BigEndian>()?;
+            let axis_size = raw.read_u16::<BigEndian>()?;
+            let instance_count = raw.read_u16::<BigEndian>()?;
+            let instance_size = raw.read_u16::<BigEndian>()?;
+            let mut instances = vec![];
+
+            let data = &data[(axis_offset as usize + (axis_count as usize * axis_size as usize))..];
+            for i in 0..instance_count {
+                let mut raw = &data[(i as usize * instance_size as usize)..];
+                let sub_family_name_id = raw.read_u16::<BigEndian>()?;
+                let _ = raw.read_u16::<BigEndian>()?;
+                let coords = (0..axis_count)
+                    .map(|_| {
+                        use ttf_parser::FromData;
+                        let mut v = [0_u8; 4];
+                        raw.read_exact(&mut v).map(|_| Fixed::parse(&v).unwrap())
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let postscript_name_id = raw.read_u16::<BigEndian>()?;
+                instances.push(FvarInstanceRecord {
+                    sub_family_name_id,
+                    coords,
+                    postscript_name_id,
+                })
+            }
+            for rec in instances {
+                let sub_family = name_table
+                    .names
+                    .into_iter()
+                    .find(|name| name.name_id == rec.sub_family_name_id)
+                    .and_then(|name| {
+                        Some(Name {
+                            id: name.name_id,
+                            name: name.to_string().or_else(|| {
+                                // try to force unicode encoding
+                                Some(std::str::from_utf8(name.name).ok()?.to_string())
+                            })?,
+                            language_id: name.language_id,
+                        })
+                    });
+                let postscript = name_table
+                    .names
+                    .into_iter()
+                    .find(|name| name.name_id == rec.postscript_name_id)
+                    .and_then(|name| {
+                        Some(Name {
+                            id: name.name_id,
+                            name: name.to_string().or_else(|| {
+                                // try to force unicode encoding
+                                Some(std::str::from_utf8(name.name).ok()?.to_string())
+                            })?,
+                            language_id: name.language_id,
+                        })
+                    });
+                if let (Some(sub_family), Some(postscript)) = (sub_family, postscript) {
+                    fvar.push(FvarInstance {
+                        sub_family,
+                        coords: rec.coords,
+                        postscript,
+                    })
+                }
+            }
+        }
         if names.is_empty() {
             return Err(Error::EmptyName);
         }
@@ -242,6 +341,7 @@ impl Font {
             face: Arc::new(ArcSwap::new(Arc::new(Some(face)))),
             path: None,
             style_names,
+            fvar,
         };
         Ok(font)
     }
