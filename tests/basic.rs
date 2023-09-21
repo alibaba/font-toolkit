@@ -21,6 +21,15 @@ pub fn test_variable_font_loading() -> Result<(), Error> {
     let _ = fontkit.add_font_from_buffer(buf)?;
     let mut key = FontKey::default();
     key.family = "AlimamaFangYuanTiVF-Medium-Round".into();
-    assert!(fontkit.query(&key).is_some());
+    let bitmap_1 = fontkit
+        .query(&key)
+        .and_then(|font| font.bitmap('G', 10.0, 0.0))
+        .map(|g| g.bitmap.iter().filter(|p| **p > 0).count());
+    key.family = "AlimamaFangYuanTiVF-Thin-Round".into();
+    let bitmap_2 = fontkit
+        .query(&key)
+        .and_then(|font| font.bitmap('G', 10.0, 0.0))
+        .map(|g| g.bitmap.iter().filter(|p| **p > 0).count());
+    assert!(bitmap_1 > bitmap_2);
     Ok(())
 }

@@ -57,7 +57,7 @@ pub fn number_width_to_str(width: u16) -> String {
 
 #[cfg_attr(wasm, derive(Tsify, Serialize, Deserialize))]
 #[cfg_attr(wasm, tsify(into_wasm_abi, from_wasm_abi))]
-pub struct FontKeyArray(Vec<FontKey>);
+pub struct FontKeyArray(pub(crate) Vec<FontKey>);
 
 // https://github.com/serde-rs/serde/issues/368
 struct GenericDefault<const U: u32>;
@@ -176,7 +176,7 @@ impl Font {
             Variant::Index(i) => i,
             _ => 0,
         };
-        let face = StaticFaceTryBuilder {
+        let mut face = StaticFaceTryBuilder {
             buffer: buffer.clone(),
             face_builder: |buf| Face::parse(buf, index),
         }
@@ -350,7 +350,12 @@ impl Font {
             stretch: face.borrow_face().width().to_number() as u32,
             family: ascii_name.unwrap_or_else(|| names[0].name.clone()),
         };
-        if let Variant::Instance { coords, names, .. } = &variant {
+        if let Variant::Instance {
+            coords,
+            names,
+            axes,
+        } = &variant
+        {
             let width_axis_index = axes
                 .iter()
                 .position(|axis| axis.tag == Tag::from_bytes(b"wdth"));
@@ -364,6 +369,11 @@ impl Font {
                 key.weight = value.0 as u32;
             }
             key.family = names[0].postscript.name.clone();
+            face.with_face_mut(|face| {
+                for (coord, axis) in coords.iter().zip(axes.iter()) {
+                    face.set_variation(axis.tag, coord.0);
+                }
+            });
         }
         let font = Font {
             names,

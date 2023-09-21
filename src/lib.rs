@@ -8,8 +8,6 @@ use std::collections::HashSet;
 use std::ops::Deref;
 #[cfg(not(wasm))]
 use std::path::Path;
-#[cfg(wasm)]
-use tsify::Tsify;
 pub use ttf_parser::LineMetrics;
 #[cfg(wasm)]
 use wasm_bindgen::prelude::*;
