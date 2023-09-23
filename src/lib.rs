@@ -28,6 +28,7 @@ pub use font::*;
 pub use metrics::*;
 #[cfg(feature = "ras")]
 pub use ras::*;
+pub use tiny_skia_path::PathSegment;
 
 #[cfg_attr(wasm, wasm_bindgen)]
 pub struct FontKit {

@@ -85,6 +85,17 @@ pub struct FontKey {
     pub family: String,
 }
 
+impl FontKey {
+    pub fn new_with_family(family: String) -> Self {
+        FontKey {
+            weight: 400,
+            italic: false,
+            stretch: 5,
+            family,
+        }
+    }
+}
+
 impl fmt::Display for FontKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
