@@ -149,6 +149,10 @@ impl FontKit {
             }
         }
     }
+
+    pub fn remove(&self, key: FontKey) {
+        self.fonts.remove(&key);
+    }
 }
 
 impl FontKit {
@@ -230,10 +234,6 @@ impl FontKit {
         return self.fonts.iter().find(|font| *font.key() == *key);
         #[cfg(not(dashmap))]
         self.fonts.values().find(|font| font.key == *key)
-    }
-
-    pub fn remove(&self, key: &FontKey) {
-        self.fonts.remove(key);
     }
 
     pub fn query(&self, key: &FontKey) -> Option<impl Deref<Target = Font> + '_> {
