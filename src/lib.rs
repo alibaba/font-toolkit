@@ -150,8 +150,8 @@ impl FontKit {
         }
     }
 
-    pub fn remove(&self, key: &FontKey) {
-        self.fonts.remove(key);
+    pub fn remove(&self, key: FontKey) {
+        self.fonts.remove(&key);
     }
 }
 
