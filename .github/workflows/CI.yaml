@@ -28,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['14', '16', '18']
+        node: ['16', '18', '20']
     runs-on: ubuntu-latest
 
     steps:
@@ -41,15 +41,13 @@ jobs:
           check-latest: true
 
       - name: Install
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          override: true
+        run: |
+          rustup target add wasm32-wasi
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v1
         with:
-          key: ${{ matrix.settings.target }}-node@14-cargo-cache
+          key: ${{ matrix.settings.target }}-node@${{ matrix.node }}-cargo-cache
 
       - name: Install wasm-pack
         uses: jetli/wasm-pack-action@v0.3.0
