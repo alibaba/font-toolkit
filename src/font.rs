@@ -238,7 +238,11 @@ impl Font {
                                 .map(|_| OrderedFloat(Fixed::parse(&v).unwrap().0))
                         })
                         .collect::<Result<Vec<_>, _>>()?;
-                    let postscript_name_id = raw.read_u16::<BigEndian>()?;
+                    let postscript_name_id = if raw.is_empty() {
+                        None
+                    } else {
+                        Some(raw.read_u16::<BigEndian>()?)
+                    };
                     let sub_family = name_table
                         .names
                         .into_iter()
@@ -256,7 +260,7 @@ impl Font {
                     let postscript = name_table
                         .names
                         .into_iter()
-                        .find(|name| name.name_id == postscript_name_id)
+                        .find(|name| Some(name.name_id) == postscript_name_id)
                         .and_then(|name| {
                             Some(Name {
                                 id: name.name_id,
