@@ -1,5 +1,3 @@
-#![feature(doc_auto_cfg)]
-
 #[cfg(not(wasm))]
 use std::cell::RefCell;
 #[cfg(not(dashmap))]
