@@ -18,7 +18,7 @@ const wasi = new WASI({
 });
 
 const buf = readFileSync(WASM_PATH);
-const wasiModule = await WebAssembly.compile(new Uint8Array(buf));
+let wasiModule = undefined;
 
 // Encode string into memory starting at address base.
 const encode = (memory, buffer) => {
@@ -64,6 +64,7 @@ export class FontKitIndex {
    * **NOTE**: You **MUST** CALL `.free()` when discarding FontKit.
    */
   async initiate() {
+    if (!wasiModule) wasiModule = await WebAssembly.compile(new Uint8Array(buf));
     this.instance = await WebAssembly.instantiate(wasiModule, { wasi_snapshot_preview1: wasi.wasiImport });
     wasi.initialize(this.instance);
     this.fontkit_ptr = this.instance.exports.build_font_kit();
