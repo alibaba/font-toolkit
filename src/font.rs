@@ -472,7 +472,7 @@ impl Font {
 
 #[self_referencing]
 pub struct StaticFace {
-    buffer: Vec<u8>,
+    pub(crate) buffer: Vec<u8>,
     #[borrows(buffer)]
     #[covariant]
     pub(crate) face: Face<'this>,

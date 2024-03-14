@@ -51,6 +51,12 @@ impl FontWasm {
         self.font().units_per_em()
     }
 
+    pub fn buffer(&self) -> Vec<u8> {
+        let f = self.font().face.load();
+        let f = f.as_ref().as_ref().unwrap();
+        f.borrow_buffer().clone()
+    }
+
     pub fn advanced_x(&self, c: char) -> Option<u16> {
         let font = self.font();
         let (glyph, _) = font.outline(c)?;
