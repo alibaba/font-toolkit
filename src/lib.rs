@@ -1,15 +1,10 @@
-#[cfg(not(wasm))]
-use std::cell::RefCell;
-#[cfg(not(dashmap))]
-use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ops::Deref;
-#[cfg(not(wasm))]
 use std::path::Path;
 pub use ttf_parser::LineMetrics;
-#[cfg(wasm)]
-use wasm_bindgen::prelude::*;
 
+#[cfg(target_arch = "wasm32")]
+mod bindings;
 mod conv;
 mod error;
 mod font;
@@ -17,8 +12,8 @@ mod font;
 mod metrics;
 #[cfg(feature = "ras")]
 mod ras;
-#[cfg(wasm)]
-mod wasm;
+#[cfg(target_arch = "wasm32")]
+mod wit;
 
 pub use error::Error;
 pub use font::*;
@@ -28,70 +23,18 @@ pub use metrics::*;
 pub use ras::*;
 pub use tiny_skia_path::{self, PathSegment};
 
-#[cfg_attr(wasm, wasm_bindgen)]
 pub struct FontKit {
-    #[cfg(not(dashmap))]
-    fonts: HashMap<FontKey, Font>,
-    #[cfg(dashmap)]
     fonts: dashmap::DashMap<FontKey, Font>,
     fallback_font_key: Option<Box<dyn Fn(FontKey) -> FontKey + Send + Sync>>,
 }
 
-#[cfg_attr(wasm, wasm_bindgen)]
 impl FontKit {
     /// Create a font registry
-    #[cfg_attr(wasm, wasm_bindgen(constructor))]
     pub fn new() -> Self {
-        #[cfg(wasm)]
-        console_error_panic_hook::set_once();
         FontKit {
-            #[cfg(not(dashmap))]
-            fonts: HashMap::new(),
-            #[cfg(dashmap)]
             fonts: dashmap::DashMap::new(),
             fallback_font_key: None,
         }
-    }
-
-    /// Add fonts from a buffer. This will load the fonts and store the buffer
-    /// in FontKit. Type information is inferred from the magic number using
-    /// `infer` crate.
-    ///
-    /// If the given buffer is a font collection (ttc), multiple keys will be
-    /// returned.
-    #[cfg(wasm)]
-    #[wasm_bindgen(js_name = "add_font_from_buffer")]
-    pub fn add_font_from_buffer_wasm(
-        &mut self,
-        buffer: Vec<u8>,
-    ) -> Result<FontKeyArray, js_sys::Error> {
-        Ok(FontKeyArray(self.add_font_from_buffer(buffer)?))
-    }
-
-    #[cfg(wasm)]
-    #[wasm_bindgen(js_name = "query")]
-    pub fn query_wasm(&self, key: FontKey) -> Option<wasm::FontWasm> {
-        let font = self.query(&key)?;
-        let font = font.deref();
-        Some(wasm::FontWasm {
-            ptr: font as *const _,
-        })
-    }
-
-    #[cfg(wasm)]
-    #[wasm_bindgen(js_name = "exact_match")]
-    pub fn exact_match_wasm(&self, key: FontKey) -> Option<wasm::FontWasm> {
-        let font = self.exact_match(&key)?;
-        let font = font.deref();
-        Some(wasm::FontWasm {
-            ptr: font as *const _,
-        })
-    }
-
-    #[cfg(wasm)]
-    #[wasm_bindgen(js_name = "font_keys")]
-    pub fn font_keys_wasm(&self) -> FontKeyArray {
-        FontKeyArray(self.font_keys().collect())
     }
 
     pub fn len(&self) -> usize {
@@ -100,7 +43,6 @@ impl FontKit {
 
     /// Setup a font as fallback. When measure fails, FontKit will use this
     /// fallback to measure, if possible
-    #[cfg(not(wasm))]
     pub fn set_fallback(
         &mut self,
         font_key: Option<impl Fn(FontKey) -> FontKey + Send + Sync + 'static>,
@@ -151,26 +93,6 @@ impl FontKit {
     pub fn remove(&self, key: FontKey) {
         self.fonts.remove(&key);
     }
-}
-
-impl FontKit {
-    /// Add fonts from a buffer. This will load the fonts and store the buffer
-    /// in FontKit. Type information is inferred from the magic number using
-    /// `infer` crate.
-    ///
-    /// If the given buffer is a font collection (ttc), multiple keys will be
-    /// returned.
-    #[cfg(not(dashmap))]
-    pub fn add_font_from_buffer(&mut self, buffer: Vec<u8>) -> Result<Vec<FontKey>, Error> {
-        Ok(Font::from_buffer(&buffer)?
-            .into_iter()
-            .map(|font| {
-                let key = font.key().clone();
-                self.fonts.insert(key.clone(), font);
-                key
-            })
-            .collect::<Vec<_>>())
-    }
 
     /// Add fonts from a buffer. This will load the fonts and store the buffer
     /// in FontKit. Type information is inferred from the magic number using
@@ -178,7 +100,6 @@ impl FontKit {
     ///
     /// If the given buffer is a font collection (ttc), multiple keys will be
     /// returned.
-    #[cfg(dashmap)]
     pub fn add_font_from_buffer(&self, buffer: Vec<u8>) -> Result<Vec<FontKey>, Error> {
         Ok(Font::from_buffer(&buffer)?
             .into_iter()
@@ -191,47 +112,26 @@ impl FontKit {
     }
 
     pub fn font_keys(&self) -> impl Iterator<Item = FontKey> + '_ {
-        #[cfg(dashmap)]
         return self.fonts.iter().map(|i| {
-            log::info!("{:?}", i.names);
+            log::debug!("{:?}", i.names);
             i.key().clone()
         });
-        #[cfg(not(dashmap))]
-        self.fonts.keys()
     }
 
     /// Recursively scan a local path for fonts, this method will not store the
     /// font buffer to reduce memory consumption
-    #[cfg(not(wasm))]
-    pub fn search_fonts_from_path(&mut self, path: impl AsRef<Path>) -> Result<(), Error> {
-        #[cfg(not(any(wasm, wasi)))]
-        for entry in walkdir::WalkDir::new(path) {
-            let entry = entry?;
-            log::trace!("new entry {:?}", entry);
-            let path = entry.path();
-            if path.is_dir() {
-                continue;
-            }
-            if let Some(fonts) = load_font_from_path(&path) {
-                for font in fonts {
-                    self.fonts.insert(font.key(), font);
-                }
-            }
-        }
-        #[cfg(wasi)]
-        if let Some(fonts) = load_font_from_path(path.as_ref()) {
+    pub fn search_fonts_from_path(&self, path: impl AsRef<Path>) -> Result<(), Error> {
+        if let Some(fonts) = load_font_from_path(&path) {
             for font in fonts {
                 self.fonts.insert(font.key(), font);
             }
         }
+        // }
         Ok(())
     }
 
     pub fn exact_match(&self, key: &FontKey) -> Option<impl Deref<Target = Font> + '_> {
-        #[cfg(dashmap)]
         return self.fonts.iter().find(|font| *font.key() == *key);
-        #[cfg(not(dashmap))]
-        self.fonts.values().find(|font| font.key == *key)
     }
 
     pub fn query(&self, key: &FontKey) -> Option<impl Deref<Target = Font> + '_> {
@@ -246,12 +146,7 @@ impl FontKit {
         let mut search_results = self
             .fonts
             .iter()
-            .map(|item| {
-                #[cfg(dashmap)]
-                return item.key().clone();
-                #[cfg(not(dashmap))]
-                item.0.clone()
-            })
+            .map(|item| item.key().clone())
             .collect::<HashSet<_>>();
         for filter in filters {
             let mut s = search_results.clone();
@@ -285,9 +180,21 @@ impl FontKit {
     }
 }
 
-#[cfg(not(wasm))]
 fn load_font_from_path(path: impl AsRef<std::path::Path>) -> Option<Vec<Font>> {
     use std::io::Read;
+
+    // if path.as_ref().is_dir() {
+    //     let mut result = vec![];
+    //     if let Ok(data) = fs::read_dir(path) {
+    //         for entry in data {
+    //             if let Ok(entry) = entry {
+    //
+    // result.extend(load_font_from_path(&entry.path()).into_iter().flatten());
+    //             }
+    //         }
+    //     }
+    //     return Some(result);
+    // }
 
     let mut buffer = Vec::new();
     let path = path.as_ref();
@@ -328,168 +235,4 @@ enum Filter<'a> {
     Italic(bool),
     Weight(u32),
     Stretch(u32),
-}
-
-#[cfg(not(wasm))]
-std::thread_local! {
-    static ALLOCS: RefCell<std::collections::HashMap<u64, usize>> = RefCell::new(std::collections::HashMap::new());
-}
-
-#[cfg(not(wasm))]
-#[doc(hidden)]
-#[no_mangle]
-pub unsafe extern "C" fn build_font_kit() -> *const u8 {
-    let fontkit = FontKit::new();
-    Box::into_raw(Box::new(fontkit)) as _
-}
-
-#[cfg(not(wasm))]
-#[doc(hidden)]
-#[no_mangle]
-pub unsafe extern "C" fn add_search_path(fontkit: *mut u8, custom_path: *const u8, len: usize) {
-    let fontkit = &mut *(fontkit as *mut FontKit);
-    let custom_path = std::slice::from_raw_parts(custom_path, len);
-    match std::str::from_utf8(custom_path) {
-        Ok("") => {}
-        Ok(path) => {
-            if let Err(e) = fontkit.search_fonts_from_path(path) {
-                eprintln!("{:?}", e);
-            }
-        }
-        Err(e) => {
-            eprintln!("{:?}", e)
-        }
-    }
-}
-
-#[cfg(not(wasm))]
-#[doc(hidden)]
-#[no_mangle]
-pub unsafe extern "C" fn font_for_face(
-    fontkit: *mut FontKit,
-    font_face: *const u8,
-    len: usize,
-    weight: u32,
-    italic: bool,
-    stretch: u16,
-) -> *const u8 {
-    let fontkit = &mut *fontkit;
-    let font_face = std::slice::from_raw_parts(font_face, len);
-    let font_face = std::str::from_utf8_unchecked(font_face);
-    let key = FontKey {
-        family: font_face.to_string(),
-        weight,
-        italic,
-        stretch: stretch as u32,
-    };
-    let font = fontkit.query(&key);
-    match font {
-        Some(font) => font.deref() as *const _ as *const u8,
-        None => {
-            eprintln!("{:?} not found in {} fonts", key, fontkit.len());
-            std::ptr::null()
-        }
-    }
-}
-
-#[cfg(not(wasm))]
-#[doc(hidden)]
-#[no_mangle]
-pub unsafe extern "C" fn path_for_font(font: *const u8) -> *const u8 {
-    let font = &*(font as *const Font);
-    let path = match font.path().and_then(|p| p.to_str()).map(|p| p.to_string()) {
-        Some(p) => p,
-        None => return 0 as _,
-    };
-    let buffer = path.as_bytes().to_vec();
-    let (ptr, len) = into_raw(buffer);
-    ALLOCS.with(|map| map.borrow_mut().insert(ptr as u64, len));
-    ptr
-}
-
-#[cfg(not(wasm))]
-#[doc(hidden)]
-#[no_mangle]
-pub fn fontkit_alloc() -> *mut u8 {
-    let v = vec![0_u8; 1024];
-    let (ptr, _) = into_raw(v);
-    ptr
-}
-
-#[cfg(not(wasm))]
-fn into_raw<T>(mut v: Vec<T>) -> (*mut T, usize) {
-    let ptr = v.as_mut_ptr();
-    let len = v.len();
-    v.shrink_to_fit();
-    std::mem::forget(v);
-    (ptr, len)
-}
-
-#[cfg(not(wasm))]
-#[doc(hidden)]
-#[no_mangle]
-pub unsafe fn fontkit_mfree(ptr: *mut u8) {
-    let _ = Vec::from_raw_parts(ptr, 1024, 1024);
-}
-
-#[cfg(not(wasm))]
-#[doc(hidden)]
-#[no_mangle]
-pub unsafe fn free_fontkit(ptr: *mut FontKit) {
-    let _ = Box::from_raw(ptr);
-}
-
-#[cfg(not(wasm))]
-#[doc(hidden)]
-#[no_mangle]
-pub unsafe fn free_fontkit_str(ptr: *mut u8) {
-    if let Some(len) = ALLOCS.with(|map| map.borrow_mut().remove(&(ptr as u64))) {
-        let _ = Vec::from_raw_parts(ptr, len, len);
-    }
-}
-
-#[cfg(not(wasm))]
-#[doc(hidden)]
-#[no_mangle]
-pub fn fontkit_str_length(ptr: *const u8) -> u32 {
-    ALLOCS.with(|map| {
-        map.borrow()
-            .get(&(ptr as u64))
-            .map(|l| *l as u32)
-            .unwrap_or_default()
-    })
-}
-
-#[cfg(not(wasm))]
-#[doc(hidden)]
-#[no_mangle]
-pub unsafe extern "C" fn list_all_font(fontkit: *mut FontKit) -> *const u8 {
-    let kit = &*fontkit;
-    let fonts = kit
-        .fonts
-        .iter()
-        .map(|font| {
-            #[cfg(not(dashmap))]
-            let font = font.1;
-            let key = font.key();
-            let path = match font.path().and_then(|p| p.to_str()).map(|p| p.to_string()) {
-                Some(p) => p,
-                None => "".to_string(),
-            };
-            serde_json::json!({
-                "names": font.names,
-                "stretch": key.stretch,
-                "italic": key.italic,
-                "weight": key.weight,
-                "family": key.family,
-                "styleNames": font.style_names.clone(),
-                "path": path,
-            })
-        })
-        .collect::<Vec<_>>();
-    let data = serde_json::to_string(&fonts).unwrap();
-    let buffer = data.as_bytes().to_vec();
-    let (ptr, len) = into_raw(buffer);
-    ALLOCS.with(|map| map.borrow_mut().insert(ptr as u64, len));
-    ptr
 }

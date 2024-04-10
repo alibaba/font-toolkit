@@ -1,15 +1,15 @@
 {
   "name": "fontkit-rs",
-  "version": "0.0.7-beta.1",
+  "version": "0.0.9-beta.3",
   "description": "Toolkit used to load, match, measure, and render texts",
-  "main": "pkg/bundler/index.js",
+  "main": "index.js",
   "directories": {
     "example": "examples",
     "test": "tests"
   },
   "files": [
     "pkg/**/*",
-    "node.js",
+    "index.js",
     "Readme.md"
   ],
   "author": "Zimon Dai <daizhuoxian@gmail.com>",
@@ -66,6 +66,7 @@
   },
   "type": "module",
   "dependencies": {
+    "@bytecodealliance/preview2-shim": "^0.16.1",
     "walkdir": "^0.4.1"
   }
 }

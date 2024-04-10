@@ -1,0 +1,69 @@
+package alibaba:fontkit;
+
+interface fontkit-interface {
+    record font-key {
+        weight: option<u16>,
+        italic: option<bool>,
+        stretch: option<u16>,
+        family: string,
+    }
+    record name {
+        id: u16,
+        name: string,
+        language-id: u16
+    }
+    record font-info {
+        style-names: list<name>,
+        names: list<name>,
+        path: option<string>,
+        key: font-key
+    }
+    resource text-metrics {
+        width: func(font-size: f32, letter-spacing: f32) -> f32;
+        height: func(font-size: f32, line-height: option<f32>) -> f32;
+        ascender: func(font-size: f32) -> f32;
+    }
+    /// Instance of a single font
+    resource font {
+        /// Check if the font has valid data for a character
+        has-glyph: func(c: char) -> bool;
+        /// Return the font buffer
+        buffer: func() -> list<u8>;
+        /// Return the path if this font is added from searching a path
+        path: func() -> string;
+        /// Return the key of this font
+        key: func() -> font-key;
+        /// Measure text using this font
+        measure: func(text: string) -> result<text-metrics, string>;
+        ascender: func() -> s16;
+        descender: func() -> s16;
+        units-per-em: func() -> u16;
+    }
+    /// Stores font buffer and provides font-querying APIs
+    resource font-kit {
+        constructor();
+        /// Register a font (or several fonts in case of ttc), return the keys of added fonts.
+        /// The file type is extracted from the buffer by checking magic numbers
+        add-font-from-buffer: func(buffer: list<u8>) -> list<font-key>;
+        /// Search and add fonts from a path
+        add-search-path: func(path: string);
+        /// Query font using a key, this API returns valid result only if a single result is found
+        query: func(key: font-key) -> option<font>;
+        /// Using exact-match method to directly obtain a font, skipping the querying logic
+        exact-match: func(key: font-key) -> option<font>;
+        /// Get all registered fonts' keys
+        font-keys: func() -> list<font-key>;
+        /// Get detailed info of all fonts registered
+        fonts-info: func() -> list<font-info>;
+        /// Get number of registered fonts
+        len: func() -> u32;
+        /// Remove a font matching the given key
+        remove: func(key: font-key);
+    }
+    str-width-to-number: func(width: string) -> u16;
+    number-width-to-str: func(width: u16) -> string;
+}
+
+world fontkit {
+    export fontkit-interface;
+}

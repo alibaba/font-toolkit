@@ -3,8 +3,6 @@ use byteorder::{BigEndian, ReadBytesExt};
 use ordered_float::OrderedFloat;
 use ouroboros::self_referencing;
 use serde::{Deserialize, Serialize};
-#[cfg(not(dashmap))]
-use std::collections::HashMap;
 use std::collections::HashMap;
 use std::fmt;
 use std::io::Read;
@@ -12,16 +10,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 pub use ttf_parser::LineMetrics;
 use ttf_parser::{Face, Fixed, Tag, VariationAxis, Width as ParserWidth};
-// #[cfg(not(wasm))]
-// use walkdir::WalkDir;
-#[cfg(wasm)]
-use tsify::Tsify;
-#[cfg(wasm)]
-use wasm_bindgen::prelude::*;
 
 use crate::Error;
 
-#[cfg_attr(wasm, wasm_bindgen)]
 pub fn str_width_to_number(width: &str) -> u16 {
     match width {
         "ultra-condensed" => ParserWidth::UltraCondensed,
@@ -38,7 +29,6 @@ pub fn str_width_to_number(width: &str) -> u16 {
     .to_number()
 }
 
-#[cfg_attr(wasm, wasm_bindgen)]
 pub fn number_width_to_str(width: u16) -> String {
     match width {
         1 => "ultra-condensed",
@@ -440,7 +430,6 @@ impl Font {
         self.face.swap(Arc::new(None));
     }
 
-    #[cfg(not(wasm))]
     pub fn load(&self) -> Result<(), Error> {
         if self.face.load().is_some() {
             return Ok(());
@@ -459,6 +448,7 @@ impl Font {
     }
 
     pub fn has_glyph(&self, c: char) -> bool {
+        self.load().unwrap();
         let f = self.face.load();
         let f = f.as_ref().as_ref().unwrap();
         let f = f.borrow_face();

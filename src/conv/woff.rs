@@ -194,15 +194,3 @@ where
 
     Ok(())
 }
-
-// #[cfg(test)]
-// #[wasm_bindgen_test::wasm_bindgen_test]
-// fn dump_woff() {
-//     let result: &[u8] =
-// include_bytes!("../../tests/HelveticaLTStd-Black.woff");     let read =
-// std::io::Cursor::new(&result);     let mut out =
-// std::io::Cursor::new(vec![]);     convert_woff_to_otf(read, &mut
-// out).unwrap();     let out = out.into_inner();
-//     let font = ttf_parser::Font::from_data(&out, 0).unwrap();
-//     println!("{:?} {:?}", font.family_name(), font.post_script_name());
-// }

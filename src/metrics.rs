@@ -5,8 +5,6 @@ use ttf_parser::{GlyphId, Rect};
 use unicode_bidi::{BidiInfo, Level};
 use unicode_normalization::UnicodeNormalization;
 use unicode_script::{Script, ScriptExtension};
-#[cfg(wasm)]
-use wasm_bindgen::prelude::*;
 
 mod arabic;
 mod compose;
@@ -15,7 +13,6 @@ impl Font {
     /// Measure a string slice. If certain character is missing, the related
     /// [`CharMetrics`] 's `missing` field will be `true`
     pub fn measure(&self, text: &str) -> Result<TextMetrics, Error> {
-        #[cfg(not(wasm))]
         self.load()?;
         let f = self.face.load();
         let f = f.as_ref().as_ref().unwrap();
@@ -157,7 +154,6 @@ impl Font {
     }
 }
 
-#[cfg_attr(wasm, wasm_bindgen)]
 #[derive(Debug, Clone, Default)]
 pub struct TextMetrics {
     value: String,
@@ -168,7 +164,6 @@ pub struct TextMetrics {
     units: u16,
 }
 
-#[cfg_attr(wasm, wasm_bindgen)]
 impl TextMetrics {
     pub fn width(&self, font_size: f32, letter_spacing: f32) -> f32 {
         let factor = font_size / self.units as f32;
@@ -258,7 +253,6 @@ impl TextMetrics {
     }
 }
 
-#[cfg_attr(wasm, wasm_bindgen)]
 #[derive(Debug, Clone)]
 pub struct PositionedChar {
     /// Various metrics data of current character
@@ -269,7 +263,6 @@ pub struct PositionedChar {
 }
 
 /// Metrics for a single unicode charactor in a certain font
-#[cfg_attr(wasm, wasm_bindgen)]
 #[derive(Debug, Clone, Copy)]
 pub struct CharMetrics {
     pub(crate) bbox: Rect,

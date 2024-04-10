@@ -14,9 +14,6 @@ pub enum Error {
     Parser(#[from] ttf_parser::FaceParsingError),
     #[error(transparent)]
     Io(#[from] std::io::Error),
-    #[cfg(not(all(target_os = "unknown", target_arch = "wasm32")))]
-    #[error(transparent)]
-    WalkDir(#[from] walkdir::Error),
     #[error("Glyph {c} not found in font")]
     GlyphNotFound { c: char },
     #[cfg(feature = "woff2")]
@@ -27,18 +24,4 @@ pub enum Error {
         value: Vec<char>,
         metrics: Vec<PositionedChar>,
     },
-}
-
-#[cfg(node)]
-impl From<Error> for napi::Error {
-    fn from(e: Error) -> Self {
-        napi::Error::from_reason(format!("{}", e))
-    }
-}
-
-#[cfg(wasm)]
-impl From<Error> for js_sys::Error {
-    fn from(e: Error) -> Self {
-        js_sys::Error::new(&format!("{}", e)).into()
-    }
 }
