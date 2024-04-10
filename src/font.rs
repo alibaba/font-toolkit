@@ -130,6 +130,36 @@ enum Variant {
     },
 }
 
+/// Returns whether a buffer is WOFF font data.
+pub fn is_woff(buf: &[u8]) -> bool {
+    buf.len() > 4 && buf[0] == 0x77 && buf[1] == 0x4F && buf[2] == 0x46 && buf[3] == 0x46
+}
+
+/// Returns whether a buffer is WOFF2 font data.
+pub fn is_woff2(buf: &[u8]) -> bool {
+    buf.len() > 4 && buf[0] == 0x77 && buf[1] == 0x4F && buf[2] == 0x46 && buf[3] == 0x32
+}
+
+/// Returns whether a buffer is TTF font data.
+pub fn is_ttf(buf: &[u8]) -> bool {
+    buf.len() > 4
+        && buf[0] == 0x00
+        && buf[1] == 0x01
+        && buf[2] == 0x00
+        && buf[3] == 0x00
+        && buf[4] == 0x00
+}
+
+/// Returns whether a buffer is OTF font data.
+pub fn is_otf(buf: &[u8]) -> bool {
+    buf.len() > 4
+        && buf[0] == 0x4F
+        && buf[1] == 0x54
+        && buf[2] == 0x54
+        && buf[3] == 0x4F
+        && buf[4] == 0x00
+}
+
 #[derive(Clone)]
 pub struct Font {
     key: FontKey,
@@ -148,33 +178,38 @@ impl Font {
     }
 
     pub(super) fn from_buffer(mut buffer: &[u8]) -> Result<Vec<Self>, Error> {
-        let ty = infer::get(buffer).ok_or(Error::UnrecognizedBuffer)?;
         let mut variants = vec![Variant::Index(0)];
-        let buffer = match (ty.mime_type(), ty.extension()) {
-            #[cfg(feature = "woff2")]
-            ("application/font-woff", "woff2") => woff2::convert_woff2_to_ttf(&mut buffer)?,
-            #[cfg(feature = "woff")]
-            ("application/font-woff", "woff") => {
-                use std::io::Cursor;
-
-                let reader = Cursor::new(buffer);
-                let mut otf_buf = Cursor::new(Vec::new());
-                crate::conv::woff::convert_woff_to_otf(reader, &mut otf_buf)?;
-                otf_buf.into_inner()
-            }
-            ("application/font-sfnt", _) => buffer.to_vec(),
-            ("application/font-collection", _) => {
-                variants = (0..ttf_parser::fonts_in_collection(&buffer).unwrap_or(1))
-                    .map(|i| Variant::Index(i))
-                    .collect();
-                buffer.to_vec()
-            }
-            a => return Err(Error::UnsupportedMIME(a.0)),
+        let mut result = if is_ttf(&buffer) {
+            buffer.to_vec()
+        } else if is_otf(&buffer) {
+            variants = (0..ttf_parser::fonts_in_collection(&buffer).unwrap_or(1))
+                .map(|i| Variant::Index(i))
+                .collect();
+            buffer.to_vec()
+        } else {
+            vec![]
         };
+
+        #[cfg(feature = "woff2")]
+        if is_woff2(&buffer) {
+            result = woff2::convert_woff2_to_ttf(&mut buffer)?;
+        }
+        #[cfg(feature = "woff")]
+        if is_woff(&buffer) {
+            use std::io::Cursor;
+
+            let reader = Cursor::new(buffer);
+            let mut otf_buf = Cursor::new(Vec::new());
+            crate::conv::woff::convert_woff_to_otf(reader, &mut otf_buf)?;
+            result = otf_buf.into_inner();
+        }
+        if result.is_empty() {
+            return Err(Error::UnsupportedMIME("unknown"));
+        }
 
         Ok(variants
             .into_iter()
-            .map(|v| Font::from_buffer_with_variant(buffer.clone(), v))
+            .map(|v| Font::from_buffer_with_variant(result.clone(), v))
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .flatten()
