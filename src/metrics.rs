@@ -274,3 +274,16 @@ pub struct CharMetrics {
     pub height: i16,
     pub missing: bool,
 }
+
+impl CharMetrics {
+    pub(crate) fn mul_factor(&mut self, factor: f32) {
+        self.advanced_x = (self.advanced_x as f32 * factor) as u16;
+        self.units = self.units * factor;
+        self.height = (self.height as f32 * factor) as i16;
+        self.lsb = (self.lsb as f32 * factor) as i16;
+        self.bbox.x_min = (self.bbox.x_min as f32 * factor) as i16;
+        self.bbox.x_max = (self.bbox.x_max as f32 * factor) as i16;
+        self.bbox.y_min = (self.bbox.y_min as f32 * factor) as i16;
+        self.bbox.y_max = (self.bbox.y_max as f32 * factor) as i16;
+    }
+}

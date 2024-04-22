@@ -9,7 +9,7 @@ use pathfinder_content::stroke::{LineCap, LineJoin, OutlineStrokeToFill, StrokeS
 use pathfinder_geometry::line_segment::LineSegment2F;
 use pathfinder_geometry::vector::Vector2F;
 use tiny_skia_path::PathBuilder as PathData;
-use ttf_parser::{OutlineBuilder, Rect};
+use ttf_parser::{OutlineBuilder, RasterGlyphImage, Rect};
 
 impl Font {
     /// Output the outline instructions of a glyph
@@ -35,6 +35,49 @@ impl Font {
             advanced_x,
         };
         Some((glyph, builder.outline))
+    }
+
+    pub fn bitmap_png(&self, c: char, font_size: f32) -> Option<GlyphBitmap> {
+        if !self.has_glyph(c) {
+            return None;
+        }
+
+        self.load().ok()?;
+        let f = self.face.load();
+        let f = f.as_ref().as_ref().unwrap();
+        let f = f.borrow_face();
+        let a = f.ascender();
+        let d = f.descender();
+        let units = f.units_per_em() as f32;
+        let factor = font_size / units;
+        let glyph_id = f.glyph_index(c)?;
+        let bb: RasterGlyphImage = f.glyph_raster_image(glyph_id, 1)?;
+        let advanced_x = f.glyph_hor_advance(glyph_id)? as f32 * factor;
+        let width = advanced_x;
+        let height = width * (bb.height as f32 / bb.width as f32);
+        let width_factor = width as f32 / bb.width as f32;
+        let height_factor = height as f32 / bb.height as f32;
+
+        let x = bb.x as f32 * width_factor;
+        let y = bb.y as f32 * height_factor;
+
+        let bbox = ttf_parser::Rect {
+            x_min: (x / factor) as i16,
+            y_min: (y / factor) as i16,
+            x_max: ((x as f32 + width as f32) / factor) as i16,
+            y_max: ((y as f32 + height as f32) / factor) as i16,
+        };
+
+        Some(GlyphBitmap::PNG(GlyphBitmapPNG {
+            width: width as u16,
+            height: height as u16,
+            bbox,
+            factor,
+            ascender: a as f32 * factor,
+            descender: d as f32 * factor,
+            advanced_x,
+            buffer: bb.data.to_vec(),
+        }))
     }
 
     /// Rasterize the outline of a glyph for a certain font_size, and a possible
@@ -127,7 +170,7 @@ impl Font {
             }
         });
 
-        Some(GlyphBitmap {
+        Some(GlyphBitmap::GrayScale(GlyphBitmapGrayScale {
             width: width as u16,
             bbox: glyph.bbox,
             factor,
@@ -138,7 +181,7 @@ impl Font {
             stroke_bitmap,
             stroke_x_correction: (glyph.bbox.x_min as f32 * factor).floor() - stroke_x_min,
             stroke_y_correction: stroke_y_max - (glyph.bbox.y_max as f32 * factor).ceil(),
-        })
+        }))
     }
 }
 
@@ -310,9 +353,15 @@ pub struct Glyph {
     pub advanced_x: u16,
 }
 
+#[derive(Clone, Debug)]
+pub enum GlyphBitmap {
+    GrayScale(GlyphBitmapGrayScale),
+    PNG(GlyphBitmapPNG),
+}
+
 /// Rasterized data of a [Glyph](Glyph)
 #[derive(Clone, Debug)]
-pub struct GlyphBitmap {
+pub struct GlyphBitmapGrayScale {
     width: u16,
     bbox: ttf_parser::Rect,
     factor: f32,
@@ -325,29 +374,108 @@ pub struct GlyphBitmap {
     pub stroke_y_correction: f32,
 }
 
+#[derive(Clone, Debug)]
+pub struct GlyphBitmapPNG {
+    width: u16,
+    height: u16,
+    bbox: ttf_parser::Rect,
+    factor: f32,
+    pub ascender: f32,
+    pub descender: f32,
+    pub advanced_x: f32,
+    pub buffer: Vec<u8>,
+}
+
 impl GlyphBitmap {
     pub fn width(&self) -> u32 {
-        self.width as u32
+        match self {
+            GlyphBitmap::GrayScale(g) => g.width as u32,
+            GlyphBitmap::PNG(g) => g.width as u32,
+        }
     }
 
     pub fn height(&self) -> u32 {
-        self.bitmap.len() as u32 / self.width as u32
+        match self {
+            GlyphBitmap::GrayScale(g) => g.bitmap.len() as u32 / g.width as u32,
+            GlyphBitmap::PNG(g) => g.height as u32,
+        }
     }
 
     pub fn x_min(&self) -> f32 {
-        self.bbox.x_min as f32 * self.factor
+        match self {
+            GlyphBitmap::GrayScale(g) => g.bbox.x_min as f32 * g.factor,
+            GlyphBitmap::PNG(g) => g.bbox.x_min as f32 * g.factor,
+        }
     }
 
     pub fn y_min(&self) -> f32 {
-        self.bbox.y_min as f32 * self.factor
+        match self {
+            GlyphBitmap::GrayScale(g) => g.bbox.y_min as f32 * g.factor,
+            GlyphBitmap::PNG(g) => g.bbox.y_min as f32 * g.factor,
+        }
     }
 
     pub fn x_max(&self) -> f32 {
-        self.bbox.x_max as f32 * self.factor
+        match self {
+            GlyphBitmap::GrayScale(g) => g.bbox.x_max as f32 * g.factor,
+            GlyphBitmap::PNG(g) => g.bbox.x_max as f32 * g.factor,
+        }
     }
 
     pub fn y_max(&self) -> f32 {
-        self.bbox.y_max as f32 * self.factor
+        match self {
+            GlyphBitmap::GrayScale(g) => g.bbox.y_max as f32 * g.factor,
+            GlyphBitmap::PNG(g) => g.bbox.y_max as f32 * g.factor,
+        }
+    }
+
+    pub fn advanced_x(&self) -> f32 {
+        match self {
+            GlyphBitmap::GrayScale(g) => g.advanced_x,
+            GlyphBitmap::PNG(g) => g.advanced_x,
+        }
+    }
+
+    pub fn ascender(&self) -> f32 {
+        match self {
+            GlyphBitmap::GrayScale(g) => g.ascender,
+            GlyphBitmap::PNG(g) => g.ascender,
+        }
+    }
+
+    pub fn descender(&self) -> f32 {
+        match self {
+            GlyphBitmap::GrayScale(g) => g.descender,
+            GlyphBitmap::PNG(g) => g.descender,
+        }
+    }
+
+    pub fn stroke_x_correction(&self) -> f32 {
+        match self {
+            GlyphBitmap::GrayScale(g) => g.stroke_x_correction,
+            GlyphBitmap::PNG(_) => 0.0,
+        }
+    }
+
+    pub fn stroke_y_correction(&self) -> f32 {
+        match self {
+            GlyphBitmap::GrayScale(g) => g.stroke_y_correction,
+            GlyphBitmap::PNG(_) => 0.0,
+        }
+    }
+
+    pub fn bitmap(&self) -> &Vec<u8> {
+        match self {
+            GlyphBitmap::GrayScale(g) => &g.bitmap,
+            GlyphBitmap::PNG(g) => &g.buffer,
+        }
+    }
+
+    pub fn stroke_bitmap(&self) -> &Option<(Vec<u8>, u32)> {
+        match self {
+            GlyphBitmap::GrayScale(g) => &g.stroke_bitmap,
+            GlyphBitmap::PNG(_) => &None,
+        }
     }
 }
 

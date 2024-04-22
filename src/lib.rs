@@ -26,6 +26,7 @@ pub use tiny_skia_path::{self, PathSegment};
 pub struct FontKit {
     fonts: dashmap::DashMap<FontKey, Font>,
     fallback_font_key: Option<Box<dyn Fn(FontKey) -> FontKey + Send + Sync>>,
+    emoji_font_key: Option<FontKey>,
 }
 
 impl FontKit {
@@ -34,6 +35,7 @@ impl FontKit {
         FontKit {
             fonts: dashmap::DashMap::new(),
             fallback_font_key: None,
+            emoji_font_key: None,
         }
     }
 
@@ -50,6 +52,37 @@ impl FontKit {
         self.fallback_font_key = font_key.map(|f| Box::new(f) as _);
     }
 
+    pub fn set_emoji(&mut self, font_key: FontKey) {
+        self.emoji_font_key = Some(font_key)
+    }
+
+    #[cfg(feature = "metrics")]
+    fn apply_fallback_font(
+        &self,
+        metrics: &mut TextMetrics,
+        text: &str,
+        fallback_option: &Option<FontKey>,
+    ) {
+        if let Some(font) = fallback_option.as_ref().and_then(|key| self.query(key)) {
+            if let Ok(new_metrics) = font.measure(text) {
+                let content_height_factor =
+                    metrics.content_height() as f32 / new_metrics.content_height() as f32;
+                for (old, new) in metrics
+                    .positions
+                    .iter_mut()
+                    .zip(new_metrics.positions.into_iter())
+                {
+                    if old.metrics.missing {
+                        old.metrics.missing = false;
+                        old.metrics = new.metrics;
+                        old.metrics.mul_factor(content_height_factor);
+                        old.kerning = new.kerning;
+                    }
+                }
+            }
+        }
+    }
+
     #[cfg(feature = "metrics")]
     pub fn measure(&self, font_key: FontKey, text: &str) -> Option<TextMetrics> {
         match self
@@ -58,25 +91,17 @@ impl FontKit {
         {
             Some(mut metrics) => {
                 let has_missing = metrics.positions.iter().any(|c| c.metrics.missing);
+                let fallback_fontkey = self
+                    .fallback_font_key
+                    .as_ref()
+                    .and_then(|key| Some(self.query(&(key)(font_key.clone()))?.key()));
                 if has_missing {
-                    if let Some(font) = self
-                        .fallback_font_key
-                        .as_ref()
-                        .and_then(|key| self.query(&(key)(font_key.clone())))
-                    {
-                        if let Ok(new_metrics) = font.measure(text) {
-                            for (old, new) in metrics
-                                .positions
-                                .iter_mut()
-                                .zip(new_metrics.positions.into_iter())
-                            {
-                                if old.metrics.missing {
-                                    old.metrics = new.metrics;
-                                    old.kerning = new.kerning;
-                                }
-                            }
-                        }
-                    }
+                    self.apply_fallback_font(&mut metrics, text, &fallback_fontkey);
+                }
+                // if after fallback font, still has missing, then detect emoji font
+                let has_missing = metrics.positions.iter().any(|c| c.metrics.missing);
+                if has_missing {
+                    self.apply_fallback_font(&mut metrics, text, &self.emoji_font_key);
                 }
                 Some(metrics)
             }
