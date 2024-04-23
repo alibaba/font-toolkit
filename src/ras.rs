@@ -76,7 +76,8 @@ impl Font {
             ascender: a as f32 * factor,
             descender: d as f32 * factor,
             advanced_x,
-            buffer: bb.data.to_vec(),
+            data: bb.data.to_vec(),
+            rgba_buf: None,
         }))
     }
 
@@ -383,7 +384,8 @@ pub struct GlyphBitmapPNG {
     pub ascender: f32,
     pub descender: f32,
     pub advanced_x: f32,
-    pub buffer: Vec<u8>,
+    pub data: Vec<u8>,
+    pub rgba_buf: Option<Vec<u8>>,
 }
 
 impl GlyphBitmap {
@@ -464,10 +466,10 @@ impl GlyphBitmap {
         }
     }
 
-    pub fn bitmap(&self) -> &Vec<u8> {
+    pub fn bitmap(&self) -> Option<&Vec<u8>> {
         match self {
-            GlyphBitmap::GrayScale(g) => &g.bitmap,
-            GlyphBitmap::PNG(g) => &g.buffer,
+            GlyphBitmap::GrayScale(g) => Some(&g.bitmap),
+            GlyphBitmap::PNG(g) => g.rgba_buf.as_ref().and_then(|buf| Some(buf)),
         }
     }
 
