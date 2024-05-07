@@ -1,6 +1,6 @@
 {
   "name": "fontkit-rs",
-  "version": "0.0.9-beta.3",
+  "version": "0.0.9",
   "description": "Toolkit used to load, match, measure, and render texts",
   "main": "index.js",
   "directories": {
