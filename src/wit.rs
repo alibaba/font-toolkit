@@ -1,7 +1,9 @@
 use crate::bindings::exports::alibaba::fontkit::fontkit_interface as fi;
-use crate::*;
+use crate::font::FontKey;
+use crate::metrics::TextMetrics;
+use crate::{Font, FontKit, GlyphBitmap};
 
-use self::bindings::exports::alibaba::fontkit::fontkit_interface::GuestTextMetrics;
+use crate::bindings::exports::alibaba::fontkit::fontkit_interface::GuestTextMetrics;
 
 impl fi::GuestFont for Font {
     fn has_glyph(&self, c: char) -> bool {
@@ -43,14 +45,77 @@ impl fi::GuestFont for Font {
     fn units_per_em(&self) -> u16 {
         self.units_per_em()
     }
+
+    fn bitmap(&self, c: char, font_size: f32, stroke_width: f32) -> Option<fi::GlyphBitmap> {
+        Some(fi::GlyphBitmap::new(self.bitmap(
+            c,
+            font_size,
+            stroke_width,
+        )?))
+    }
+
+    fn underline_metrics(&self) -> Option<fi::LineMetrics> {
+        let m = self.underline_metrics()?;
+        Some(fi::LineMetrics {
+            position: m.position,
+            thickness: m.thickness,
+        })
+    }
+}
+
+impl fi::GuestGlyphBitmap for GlyphBitmap {
+    fn width(&self) -> u32 {
+        self.width()
+    }
+
+    fn height(&self) -> u32 {
+        self.height()
+    }
+
+    fn bitmap(&self) -> Vec<u8> {
+        self.bitmap().clone()
+    }
+
+    fn ascender(&self) -> f32 {
+        self.ascender()
+    }
+
+    fn descender(&self) -> f32 {
+        self.descender()
+    }
+
+    fn advanced_x(&self) -> f32 {
+        self.advanced_x()
+    }
+
+    fn x_min(&self) -> f32 {
+        self.x_min()
+    }
+
+    fn y_max(&self) -> f32 {
+        self.y_max()
+    }
+
+    fn stroke_x(&self) -> f32 {
+        self.stroke_x()
+    }
+
+    fn stroke_y(&self) -> f32 {
+        self.stroke_y()
+    }
+
+    fn stroke_bitmap(&self) -> Option<(Vec<u8>, u32)> {
+        let (bitmap, w) = self.stroke_bitmap()?;
+        Some((bitmap.clone(), w))
+    }
 }
 
 impl From<fi::FontKey> for FontKey {
     fn from(value: fi::FontKey) -> Self {
         FontKey {
-            weight: value.weight.unwrap_or(400) as u32,
-            italic: value.italic.unwrap_or(false),
-            stretch: value.stretch.unwrap_or(5) as u32,
+            weight: value.weight,
+            italic: value.italic,
+            stretch: value.stretch,
             family: value.family,
         }
     }
@@ -59,9 +124,9 @@ impl From<fi::FontKey> for FontKey {
 impl From<FontKey> for fi::FontKey {
     fn from(value: FontKey) -> Self {
         fi::FontKey {
-            weight: Some(value.weight as u16),
-            italic: Some(value.italic),
-            stretch: Some(value.stretch as u16),
+            weight: value.weight,
+            italic: value.italic,
+            stretch: value.stretch,
             family: value.family,
         }
     }
@@ -72,7 +137,11 @@ impl fi::GuestFontKit for FontKit {
         FontKit::new()
     }
 
+    #[allow(unused)]
     fn add_font_from_buffer(&self, buffer: Vec<u8>) -> Vec<fi::FontKey> {
+        #[cfg(not(feature = "parse"))]
+        return vec![];
+        #[cfg(feature = "parse")]
         self.add_font_from_buffer(buffer)
             .into_iter()
             .flatten()
@@ -103,6 +172,7 @@ impl fi::GuestFontKit for FontKit {
     }
 
     fn add_search_path(&self, path: String) {
+        #[cfg(feature = "parse")]
         self.search_fonts_from_path(path).unwrap()
     }
 
@@ -133,9 +203,21 @@ impl fi::GuestFontKit for FontKit {
             })
             .collect()
     }
+
+    fn measure(&self, key: fi::FontKey, text: String) -> Option<fi::TextMetrics> {
+        Some(fi::TextMetrics::new(self.measure(&key.into(), &text)?))
+    }
 }
 
 impl GuestTextMetrics for TextMetrics {
+    fn new(value: String) -> Self {
+        TextMetrics::new(value)
+    }
+
+    fn duplicate(&self) -> fi::TextMetrics {
+        fi::TextMetrics::new(Clone::clone(self))
+    }
+
     fn width(&self, font_size: f32, letter_spacing: f32) -> f32 {
         self.width(font_size, letter_spacing)
     }
@@ -145,8 +227,48 @@ impl GuestTextMetrics for TextMetrics {
     }
 
     fn ascender(&self, font_size: f32) -> f32 {
-        let factor = font_size / self.units() as f32;
-        (self.ascender() as f32 + self.line_gap() as f32 / 2.0) * factor
+        <TextMetrics as crate::Metrics>::ascender(self, font_size)
+    }
+
+    fn line_gap(&self) -> f32 {
+        self.line_gap() as f32 / self.units() as f32
+    }
+
+    fn slice(&self, start: u32, count: u32) -> fi::TextMetrics {
+        fi::TextMetrics::new(self.slice(start, count))
+    }
+
+    fn value(&self) -> String {
+        TextMetrics::value(&self)
+    }
+
+    fn is_rtl(&self) -> bool {
+        self.is_rtl()
+    }
+
+    fn append(&self, other: fi::TextMetrics) {
+        TextMetrics::append(self, other.get::<TextMetrics>().clone())
+    }
+
+    fn count(&self) -> u32 {
+        self.count() as u32
+    }
+
+    fn replace(&self, other: fi::TextMetrics) {
+        TextMetrics::replace(self, other.get::<TextMetrics>().clone());
+    }
+
+    fn split_by_width(&self, font_size: f32, letter_spacing: f32, width: f32) -> fi::TextMetrics {
+        fi::TextMetrics::new(self.split_by_width(font_size, letter_spacing, width))
+    }
+
+    fn chars(&self) -> Vec<char> {
+        let p = self.positions.read().unwrap();
+        p.iter().map(|c| c.metrics.c).collect()
+    }
+
+    fn units(&self) -> f32 {
+        self.units() as f32
     }
 }
 
@@ -155,6 +277,7 @@ struct Component;
 impl fi::Guest for Component {
     type Font = Font;
     type FontKit = FontKit;
+    type GlyphBitmap = GlyphBitmap;
     type TextMetrics = TextMetrics;
 
     fn str_width_to_number(width: String) -> u16 {
@@ -166,4 +289,4 @@ impl fi::Guest for Component {
     }
 }
 
-bindings::export!(Component with_types_in bindings);
+crate::bindings::export!(Component with_types_in crate::bindings);

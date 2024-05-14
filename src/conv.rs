@@ -1,2 +1,2 @@
-#[cfg(feature = "woff")]
+#[cfg(feature = "parse")]
 pub mod woff;

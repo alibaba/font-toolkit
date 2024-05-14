@@ -1,15 +1,19 @@
 use arc_swap::ArcSwap;
+#[cfg(feature = "parse")]
 use byteorder::{BigEndian, ReadBytesExt};
+#[cfg(feature = "parse")]
 use ordered_float::OrderedFloat;
 use ouroboros::self_referencing;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
+#[cfg(feature = "parse")]
 use std::collections::HashMap;
 use std::fmt;
+#[cfg(feature = "parse")]
 use std::io::Read;
 use std::path::PathBuf;
 use std::sync::Arc;
 pub use ttf_parser::LineMetrics;
-use ttf_parser::{Face, Fixed, Tag, VariationAxis, Width as ParserWidth};
+use ttf_parser::{Face, Fixed, VariationAxis, Width as ParserWidth};
 
 use crate::Error;
 
@@ -45,32 +49,16 @@ pub fn number_width_to_str(width: u16) -> String {
     .to_string()
 }
 
-#[cfg_attr(wasm, derive(Tsify, Serialize, Deserialize))]
-#[cfg_attr(wasm, tsify(into_wasm_abi, from_wasm_abi))]
-pub struct FontKeyArray(pub(crate) Vec<FontKey>);
-
-// https://github.com/serde-rs/serde/issues/368
-struct GenericDefault<const U: u32>;
-
-impl<const U: u32> GenericDefault<U> {
-    fn value() -> u32 {
-        U
-    }
-}
-
-#[cfg_attr(wasm, derive(Tsify))]
-#[cfg_attr(wasm, tsify(into_wasm_abi, from_wasm_abi))]
-#[derive(Clone, Hash, PartialEq, PartialOrd, Eq, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Hash, PartialEq, PartialOrd, Eq, Debug, Default)]
 pub struct FontKey {
     /// Font weight, same as CSS [font-weight](https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight#common_weight_name_mapping)
-    #[serde(default = "GenericDefault::<400>::value")]
-    pub weight: u32,
+    // #[serde(default = "GenericDefault::<400>::value")]
+    pub weight: Option<u16>,
     /// Italic or not, boolean
-    #[serde(default)]
-    pub italic: bool,
+    pub italic: Option<bool>,
     /// Font stretch, same as css [font-stretch](https://developer.mozilla.org/en-US/docs/Web/CSS/font-stretch)
-    #[serde(default = "GenericDefault::<5>::value")]
-    pub stretch: u32,
+    // #[serde(default = "GenericDefault::<5>::value")]
+    pub stretch: Option<u16>,
     /// Font family string
     pub family: String,
 }
@@ -78,9 +66,9 @@ pub struct FontKey {
 impl FontKey {
     pub fn new_with_family(family: String) -> Self {
         FontKey {
-            weight: 400,
-            italic: false,
-            stretch: 5,
+            weight: Some(400),
+            italic: Some(false),
+            stretch: Some(5),
             family,
         }
     }
@@ -90,7 +78,7 @@ impl fmt::Display for FontKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "FontKey({}, {}, {}, {})",
+            "FontKey({}, {:?}, {:?}, {:?})",
             self.family, self.weight, self.italic, self.stretch
         )
     }
@@ -106,6 +94,7 @@ pub(super) struct Name {
 
 #[derive(Clone, Debug)]
 pub(super) struct FvarInstance {
+    #[allow(unused)]
     pub(super) sub_family: Name,
     pub(super) postscript: Name,
 }
@@ -167,6 +156,7 @@ impl Font {
         self.key.clone()
     }
 
+    #[cfg(feature = "parse")]
     pub(super) fn from_buffer(mut buffer: &[u8]) -> Result<Vec<Self>, Error> {
         let mut variants = vec![Variant::Index(0)];
         let mut result = if is_ttf(&buffer) {
@@ -184,7 +174,7 @@ impl Font {
         if is_woff2(&buffer) {
             result = woff2::convert_woff2_to_ttf(&mut buffer)?;
         }
-        #[cfg(feature = "woff")]
+        #[cfg(feature = "parse")]
         if is_woff(&buffer) {
             use std::io::Cursor;
 
@@ -206,6 +196,7 @@ impl Font {
             .collect())
     }
 
+    #[cfg(feature = "parse")]
     fn from_buffer_with_variant(buffer: Vec<u8>, variant: Variant) -> Result<Vec<Self>, Error> {
         use ttf_parser::name_id;
         let index = match variant {
@@ -238,7 +229,7 @@ impl Font {
                 let data: &[u8] = face
                     .borrow_face()
                     .raw_face()
-                    .table(Tag::from_bytes(b"fvar"))
+                    .table(ttf_parser::Tag::from_bytes(b"fvar"))
                     .unwrap();
                 let mut raw = &*data;
                 let _version = raw.read_u32::<BigEndian>()?;
@@ -385,9 +376,9 @@ impl Font {
                 }
             });
         let mut key = FontKey {
-            weight: face.borrow_face().weight().to_number() as u32,
-            italic: face.borrow_face().is_italic(),
-            stretch: face.borrow_face().width().to_number() as u32,
+            weight: Some(face.borrow_face().weight().to_number()),
+            italic: Some(face.borrow_face().is_italic()),
+            stretch: Some(face.borrow_face().width().to_number()),
             family: ascii_name.unwrap_or_else(|| names[0].name.clone()),
         };
         if let Variant::Instance {
@@ -398,15 +389,15 @@ impl Font {
         {
             let width_axis_index = axes
                 .iter()
-                .position(|axis| axis.tag == Tag::from_bytes(b"wdth"));
+                .position(|axis| axis.tag == ttf_parser::Tag::from_bytes(b"wdth"));
             let weight_axis_index = axes
                 .iter()
-                .position(|axis| axis.tag == Tag::from_bytes(b"wght"));
+                .position(|axis| axis.tag == ttf_parser::Tag::from_bytes(b"wght"));
             if let Some(value) = width_axis_index.and_then(|i| coords.get(i)) {
-                key.stretch = value.0 as u32;
+                key.stretch = Some(value.0 as u16);
             }
             if let Some(value) = weight_axis_index.and_then(|i| coords.get(i)) {
-                key.weight = value.0 as u32;
+                key.weight = Some(value.0 as u16);
             }
             key.family = names[0].postscript.name.clone();
             face.with_face_mut(|face| {
@@ -434,6 +425,7 @@ impl Font {
         if self.face.load().is_some() {
             return Ok(());
         }
+        #[cfg(feature = "parse")]
         if let Some(path) = self.path.as_ref() {
             let mut buffer = Vec::new();
             let mut file = std::fs::File::open(path)?;

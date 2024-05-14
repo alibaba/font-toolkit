@@ -1,9 +1,10 @@
 use std::collections::HashSet;
 use std::ops::Deref;
+#[cfg(feature = "parse")]
 use std::path::Path;
 pub use ttf_parser::LineMetrics;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "wit"))]
 mod bindings;
 mod conv;
 mod error;
@@ -12,7 +13,7 @@ mod font;
 mod metrics;
 #[cfg(feature = "ras")]
 mod ras;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "wit"))]
 mod wit;
 
 pub use error::Error;
@@ -23,10 +24,13 @@ pub use metrics::*;
 pub use ras::*;
 pub use tiny_skia_path::{self, PathSegment};
 
+#[cfg(all(target_arch = "wasm32", feature = "wit"))]
+pub use bindings::exports::alibaba::fontkit::fontkit_interface::{FontKey, TextMetrics};
+
 pub struct FontKit {
-    fonts: dashmap::DashMap<FontKey, Font>,
-    fallback_font_key: Option<Box<dyn Fn(FontKey) -> FontKey + Send + Sync>>,
-    emoji_font_key: Option<FontKey>,
+    fonts: dashmap::DashMap<font::FontKey, Font>,
+    fallback_font_key: Option<Box<dyn Fn(font::FontKey) -> font::FontKey + Send + Sync>>,
+    emoji_font_key: Option<font::FontKey>,
 }
 
 impl FontKit {
@@ -47,61 +51,43 @@ impl FontKit {
     /// fallback to measure, if possible
     pub fn set_fallback(
         &mut self,
-        font_key: Option<impl Fn(FontKey) -> FontKey + Send + Sync + 'static>,
+        font_key: Option<impl Fn(font::FontKey) -> font::FontKey + Send + Sync + 'static>,
     ) {
         self.fallback_font_key = font_key.map(|f| Box::new(f) as _);
     }
 
-    pub fn set_emoji(&mut self, font_key: FontKey) {
+    pub fn set_emoji(&mut self, font_key: font::FontKey) {
         self.emoji_font_key = Some(font_key)
     }
 
     #[cfg(feature = "metrics")]
-    fn apply_fallback_font(
-        &self,
-        metrics: &mut TextMetrics,
-        text: &str,
-        fallback_option: &Option<FontKey>,
-    ) {
-        if let Some(font) = fallback_option.as_ref().and_then(|key| self.query(key)) {
-            if let Ok(new_metrics) = font.measure(text) {
-                let content_height_factor =
-                    metrics.content_height() as f32 / new_metrics.content_height() as f32;
-                for (old, new) in metrics
-                    .positions
-                    .iter_mut()
-                    .zip(new_metrics.positions.into_iter())
-                {
-                    if old.metrics.missing {
-                        old.metrics.missing = false;
-                        old.metrics = new.metrics;
-                        old.metrics.mul_factor(content_height_factor);
-                        old.kerning = new.kerning;
-                    }
-                }
-            }
-        }
-    }
-
-    #[cfg(feature = "metrics")]
-    pub fn measure(&self, font_key: FontKey, text: &str) -> Option<TextMetrics> {
+    pub fn measure(&self, font_key: &font::FontKey, text: &str) -> Option<metrics::TextMetrics> {
         match self
             .query(&font_key)
             .and_then(|font| font.measure(text).ok())
         {
             Some(mut metrics) => {
-                let has_missing = metrics.positions.iter().any(|c| c.metrics.missing);
+                let has_missing = metrics.has_missing();
                 let fallback_fontkey = self
                     .fallback_font_key
                     .as_ref()
                     .and_then(|key| Some(self.query(&(key)(font_key.clone()))?.key()));
                 if has_missing {
-                    self.apply_fallback_font(&mut metrics, text, &fallback_fontkey);
+                    if let Some(font) = fallback_fontkey.as_ref().and_then(|key| self.query(key)) {
+                        if let Ok(new_metrics) = font.measure(text) {
+                            metrics.replace(new_metrics);
+                        }
+                    }
                 }
                 // if after fallback font, still has missing, then detect emoji font
-                let has_missing = metrics.positions.iter().any(|c| c.metrics.missing);
+                let has_missing = metrics.has_missing();
                 if has_missing {
-                    self.apply_fallback_font(&mut metrics, text, &self.emoji_font_key);
+                    if let Some(font) = self.emoji_font_key.as_ref().and_then(|key| self.query(key))
+                    {
+                        if let Ok(new_metrics) = font.measure(text) {
+                            metrics = new_metrics;
+                        }
+                    }
                 }
                 Some(metrics)
             }
@@ -115,7 +101,7 @@ impl FontKit {
         }
     }
 
-    pub fn remove(&self, key: FontKey) {
+    pub fn remove(&self, key: font::FontKey) {
         self.fonts.remove(&key);
     }
 
@@ -125,7 +111,8 @@ impl FontKit {
     ///
     /// If the given buffer is a font collection (ttc), multiple keys will be
     /// returned.
-    pub fn add_font_from_buffer(&self, buffer: Vec<u8>) -> Result<Vec<FontKey>, Error> {
+    #[cfg(feature = "parse")]
+    pub fn add_font_from_buffer(&self, buffer: Vec<u8>) -> Result<Vec<font::FontKey>, Error> {
         Ok(Font::from_buffer(&buffer)?
             .into_iter()
             .map(|font| {
@@ -136,7 +123,7 @@ impl FontKit {
             .collect::<Vec<_>>())
     }
 
-    pub fn font_keys(&self) -> impl Iterator<Item = FontKey> + '_ {
+    pub fn font_keys(&self) -> impl Iterator<Item = font::FontKey> + '_ {
         return self.fonts.iter().map(|i| {
             log::debug!("{:?}", i.names);
             i.key().clone()
@@ -145,6 +132,7 @@ impl FontKit {
 
     /// Recursively scan a local path for fonts, this method will not store the
     /// font buffer to reduce memory consumption
+    #[cfg(feature = "parse")]
     pub fn search_fonts_from_path(&self, path: impl AsRef<Path>) -> Result<(), Error> {
         if let Some(fonts) = load_font_from_path(&path) {
             for font in fonts {
@@ -155,17 +143,22 @@ impl FontKit {
         Ok(())
     }
 
-    pub fn exact_match(&self, key: &FontKey) -> Option<impl Deref<Target = Font> + '_> {
+    pub fn exact_match(&self, key: &font::FontKey) -> Option<impl Deref<Target = Font> + '_> {
         return self.fonts.iter().find(|font| *font.key() == *key);
     }
 
-    pub fn query(&self, key: &FontKey) -> Option<impl Deref<Target = Font> + '_> {
-        let mut filters = vec![
-            Filter::Family(&key.family),
-            Filter::Italic(key.italic),
-            Filter::Weight(key.weight),
-            Filter::Stretch(key.stretch),
-        ];
+    pub fn query(&self, key: &font::FontKey) -> Option<impl Deref<Target = Font> + '_> {
+        let mut filters = vec![Filter::Family(&key.family)];
+        if let Some(italic) = key.italic {
+            filters.push(Filter::Italic(italic));
+        }
+        if let Some(weight) = key.weight {
+            filters.push(Filter::Weight(weight));
+        }
+        if let Some(stretch) = key.stretch {
+            filters.push(Filter::Stretch(stretch));
+        }
+
         // Fallback weight logic
         filters.push(Filter::Weight(0));
         let mut search_results = self
@@ -190,9 +183,9 @@ impl FontKit {
                                 .any(|n| n.name == f)
                     })
                 }
-                Filter::Italic(i) => s.retain(|key| key.italic == i),
-                Filter::Weight(w) => s.retain(|key| w == 0 || key.weight == w),
-                Filter::Stretch(st) => s.retain(|key| key.stretch == st),
+                Filter::Italic(i) => s.retain(|key| key.italic == Some(i)),
+                Filter::Weight(w) => s.retain(|key| w == 0 || key.weight == Some(w)),
+                Filter::Stretch(st) => s.retain(|key| key.stretch == Some(st)),
             };
             match s.len() {
                 1 => return self.fonts.get(s.iter().next()?),
@@ -205,6 +198,7 @@ impl FontKit {
     }
 }
 
+#[cfg(feature = "parse")]
 fn load_font_from_path(path: impl AsRef<std::path::Path>) -> Option<Vec<Font>> {
     use std::io::Read;
 
@@ -258,6 +252,6 @@ fn load_font_from_path(path: impl AsRef<std::path::Path>) -> Option<Vec<Font>> {
 enum Filter<'a> {
     Family(&'a str),
     Italic(bool),
-    Weight(u32),
-    Stretch(u32),
+    Weight(u16),
+    Stretch(u16),
 }

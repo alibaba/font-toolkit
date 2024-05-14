@@ -24,12 +24,12 @@ pub fn test_variable_font_loading() -> Result<(), Error> {
     let bitmap_1 = fontkit
         .query(&key)
         .and_then(|font| font.bitmap('G', 10.0, 0.0))
-        .map(|g| g.bitmap.iter().filter(|p| **p > 0).count());
+        .map(|g| g.bitmap().iter().filter(|p| **p > 0).count());
     key.family = "AlimamaFangYuanTiVF-Thin-Round".into();
     let bitmap_2 = fontkit
         .query(&key)
         .and_then(|font| font.bitmap('G', 10.0, 0.0))
-        .map(|g| g.bitmap.iter().filter(|p| **p > 0).count());
+        .map(|g| g.bitmap().iter().filter(|p| **p > 0).count());
     assert!(bitmap_1 > bitmap_2);
     Ok(())
 }

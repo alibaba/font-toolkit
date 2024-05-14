@@ -1,6 +1,7 @@
 use crate::{Error, Font};
 pub use compose::*;
 use std::borrow::Cow;
+use std::sync::{Arc, RwLock};
 use ttf_parser::{GlyphId, Rect};
 use unicode_bidi::{BidiInfo, Level};
 use unicode_normalization::UnicodeNormalization;
@@ -93,8 +94,7 @@ impl Font {
         }
 
         Ok(TextMetrics {
-            value: value.to_string(),
-            positions,
+            positions: Arc::new(RwLock::new(positions)),
             line_gap,
             content_height: height,
             ascender: font.ascender(),
@@ -156,8 +156,7 @@ impl Font {
 
 #[derive(Debug, Clone, Default)]
 pub struct TextMetrics {
-    value: String,
-    pub(crate) positions: Vec<PositionedChar>,
+    pub(crate) positions: Arc<RwLock<Vec<PositionedChar>>>,
     content_height: i16,
     ascender: i16,
     line_gap: i16,
@@ -165,9 +164,108 @@ pub struct TextMetrics {
 }
 
 impl TextMetrics {
+    #[allow(unused)]
+    pub fn new(value: String) -> Self {
+        let mut m = TextMetrics::default();
+        let data = value
+            .nfc()
+            .map(|c| PositionedChar {
+                metrics: CharMetrics {
+                    bbox: ttf_parser::Rect {
+                        x_min: 0,
+                        y_min: 0,
+                        x_max: 1,
+                        y_max: 1,
+                    },
+                    glyph_id: GlyphId(0),
+                    c,
+                    advanced_x: 0,
+                    lsb: 0,
+                    units: 0.0,
+                    height: 0,
+                    missing: true,
+                },
+                kerning: 0,
+                level: None,
+            })
+            .collect::<Vec<_>>();
+        m.positions = Arc::new(RwLock::new(data));
+        m
+    }
+
+    pub(crate) fn append(&self, other: Self) {
+        let mut p = self.positions.write().unwrap();
+        let mut other = other.positions.write().unwrap();
+        p.append(&mut other);
+    }
+
+    pub fn count(&self) -> usize {
+        let p = self.positions.read().unwrap();
+        p.len()
+    }
+
+    pub(crate) fn is_rtl(&self) -> bool {
+        self.positions
+            .read()
+            .map(|p| {
+                p.iter()
+                    .all(|p| p.level.map(|l| l.is_rtl()).unwrap_or_default())
+            })
+            .unwrap_or(false)
+    }
+
+    pub(crate) fn slice(&self, start: u32, count: u32) -> Self {
+        let start = start as usize;
+        let count = count as usize;
+        let positions = {
+            let p = self.positions.read().unwrap();
+            if p.is_empty() {
+                vec![]
+            } else {
+                let start = std::cmp::min(start, p.len() - 1);
+                let count = std::cmp::min(p.len() - start, count);
+                (&p[start..(start + count)]).to_vec()
+            }
+        };
+        TextMetrics {
+            positions: Arc::new(RwLock::new(positions)),
+            content_height: self.content_height,
+            ascender: self.ascender,
+            line_gap: self.line_gap,
+            units: self.units,
+        }
+    }
+
+    pub(crate) fn replace(&self, other: Self) {
+        let mut p = self.positions.write().unwrap();
+        let mut other_p = other.positions.write().unwrap();
+        *p = other_p.split_off(0);
+        let content_height_factor = self.content_height() as f32 / other.content_height() as f32;
+        for c in p.iter_mut() {
+            c.metrics.missing = false;
+            c.metrics.mul_factor(content_height_factor);
+        }
+    }
+
+    pub(crate) fn has_missing(&self) -> bool {
+        self.positions
+            .read()
+            .map(|p| p.iter().any(|c| c.metrics.missing))
+            .unwrap_or_default()
+    }
+
     pub fn width(&self, font_size: f32, letter_spacing: f32) -> f32 {
+        self.width_until(
+            font_size,
+            letter_spacing,
+            self.positions.read().map(|p| p.len()).unwrap_or(0),
+        )
+    }
+
+    pub(crate) fn width_until(&self, font_size: f32, letter_spacing: f32, index: usize) -> f32 {
         let factor = font_size / self.units as f32;
-        self.positions.iter().fold(0.0, |current, p| {
+        let positions = self.positions.read().unwrap();
+        positions.iter().take(index).fold(0.0, |current, p| {
             current
                 + p.kerning as f32 * factor
                 + p.metrics.advanced_x as f32 * factor
@@ -176,13 +274,13 @@ impl TextMetrics {
     }
 
     pub fn width_trim_start(&self, font_size: f32, letter_spacing: f32) -> f32 {
-        if self.positions.is_empty() {
+        let positions = self.positions.read().unwrap();
+        if positions.is_empty() {
             return 0.0;
         }
         self.width(font_size, letter_spacing)
-            - if self.positions[0].metrics.c == ' ' {
-                self.positions[0].metrics.advanced_x as f32 / self.positions[0].metrics.units
-                    * font_size
+            - if positions[0].metrics.c == ' ' {
+                positions[0].metrics.advanced_x as f32 / positions[0].metrics.units * font_size
             } else {
                 0.0
             }
@@ -195,15 +293,15 @@ impl TextMetrics {
         })
     }
 
-    pub fn content_height(&self) -> i16 {
+    pub(crate) fn content_height(&self) -> i16 {
         self.content_height
     }
 
-    pub fn ascender(&self) -> i16 {
+    pub(crate) fn ascender(&self) -> i16 {
         self.ascender
     }
 
-    pub fn line_gap(&self) -> i16 {
+    pub(crate) fn line_gap(&self) -> i16 {
         self.line_gap
     }
 
@@ -211,45 +309,15 @@ impl TextMetrics {
         self.units
     }
 
-    pub fn new(value: String) -> TextMetrics {
-        TextMetrics {
-            value,
-            ..TextMetrics::default()
-        }
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn value(&self) -> &str {
-        self.value.as_str()
-    }
-
-    #[cfg(target_arch = "wasm32")]
     pub fn value(&self) -> String {
-        self.value.clone()
-    }
-
-    pub(crate) fn trim_start(&mut self) {
-        let trim = self.value.trim_start().to_string();
-        let mut len = self.value.nfc().count() - trim.nfc().count();
-        if len == 0 {
-            return;
+        let rtl = self.is_rtl();
+        let positions = self.positions.read().unwrap();
+        let iter = positions.iter().map(|p| p.metrics.c);
+        if rtl {
+            iter.rev().collect::<String>()
+        } else {
+            iter.collect::<String>()
         }
-        self.value = trim;
-        while len > 0 {
-            self.positions.remove(0);
-            len -= 1;
-        }
-    }
-
-    pub(crate) fn pop(&mut self) {
-        self.value.pop();
-        self.positions.pop();
-    }
-}
-
-impl TextMetrics {
-    pub fn positions(&self) -> &[PositionedChar] {
-        &self.positions
     }
 }
 

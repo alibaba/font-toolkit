@@ -24,4 +24,10 @@ pub enum Error {
         value: Vec<char>,
         metrics: Vec<PositionedChar>,
     },
+    #[cfg(feature = "png")]
+    #[error("Color space not support when decoding rastered image, {0:?}")]
+    PngNotSupported(png::ColorType),
+    #[cfg(feature = "png")]
+    #[error(transparent)]
+    PngDocde(#[from] png::DecodingError),
 }

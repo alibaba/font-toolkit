@@ -1,18 +1,20 @@
 use std::collections::VecDeque;
+use std::sync::{Arc, RwLock};
 
 use textwrap::Options;
 use textwrap::WordSplitter::NoHyphenation;
 use unicode_normalization::UnicodeNormalization;
 
-use crate::{Error, FontKey, TextMetrics};
+use crate::metrics::TextMetrics;
+use crate::{Error, FontKey};
 
 #[derive(Debug, Clone)]
-pub struct Line<T> {
-    pub spans: Vec<Span<T>>,
+pub struct Line<T, M> {
+    pub spans: Vec<Span<T, M>>,
     pub hard_break: bool,
 }
 
-impl<T> Line<T> {
+impl<T, M: Metrics> Line<T, M> {
     pub fn width(&self) -> f32 {
         self.spans
             .iter()
@@ -25,11 +27,11 @@ impl<T> Line<T> {
             .fold(0.0, |current, span| current.max(span.height()))
     }
 
-    pub fn spans(&self) -> &[Span<T>] {
+    pub fn spans(&self) -> &[Span<T, M>] {
         &self.spans
     }
 
-    pub fn new(span: Span<T>) -> Self {
+    pub fn new(span: Span<T, M>) -> Self {
         Line {
             spans: vec![span],
             hard_break: true,
@@ -37,32 +39,33 @@ impl<T> Line<T> {
     }
 
     fn is_rtl(&self) -> bool {
-        self.spans.iter().all(|span| span.is_rtl())
+        self.spans.iter().all(|span| span.metrics.is_rtl())
     }
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct Span<T> {
+pub struct Span<T, M> {
     pub font_key: FontKey,
     pub letter_spacing: f32,
     pub line_height: Option<f32>,
     pub size: f32,
     pub broke_from_prev: bool,
-    pub metrics: TextMetrics,
+    pub metrics: M,
     pub swallow_leading_space: bool,
     pub additional: T,
 }
 
-impl<T> Span<T> {
+impl<T, M: Metrics> Span<T, M> {
     fn width(&self) -> f32 {
-        if self.metrics.positions.is_empty() {
+        if self.metrics.count() == 0 {
             return 0.0;
         }
         let mut width = self.metrics.width(self.size, self.letter_spacing);
-        if self.swallow_leading_space && self.metrics.positions[0].metrics.c == ' ' {
-            let c = &self.metrics.positions[0];
-            width -=
-                c.metrics.advanced_x as f32 / c.metrics.units * self.size + self.letter_spacing;
+        if self.swallow_leading_space {
+            let metrics = self.metrics.slice(0, 1);
+            if metrics.value() == "" {
+                width -= metrics.width(self.size, self.letter_spacing);
+            }
         }
         width
     }
@@ -70,26 +73,19 @@ impl<T> Span<T> {
     fn height(&self) -> f32 {
         self.metrics.height(self.size, self.line_height)
     }
-
-    fn is_rtl(&self) -> bool {
-        self.metrics
-            .positions
-            .iter()
-            .all(|p| p.level.map(|l| l.is_rtl()).unwrap_or_default())
-    }
 }
 
 /// Metrics of an area of rich-content text
 #[derive(Debug, Clone, Default)]
-pub struct Area<T> {
-    pub lines: Vec<Line<T>>,
+pub struct Area<T, M> {
+    pub lines: Vec<Line<T, M>>,
 }
 
-impl<T> Area<T>
+impl<T, M: Metrics> Area<T, M>
 where
     T: Clone,
 {
-    pub fn new() -> Area<T> {
+    pub fn new() -> Area<T, M> {
         Area { lines: vec![] }
     }
 
@@ -125,10 +121,7 @@ where
                     if rtl {
                         if span.broke_from_prev {
                             if let Some(first_span) = last_line.first_mut() {
-                                span.metrics.value.push_str(&first_span.metrics.value);
-                                span.metrics
-                                    .positions
-                                    .append(&mut first_span.metrics.positions);
+                                span.metrics.append(first_span.metrics.duplicate());
                                 std::mem::swap(first_span, &mut span);
                             } else {
                                 last_line.insert(0, span);
@@ -139,11 +132,7 @@ where
                     } else {
                         if span.broke_from_prev {
                             if let Some(last_span) = last_line.last_mut() {
-                                last_span.metrics.value.push_str(&span.metrics.value);
-                                last_span
-                                    .metrics
-                                    .positions
-                                    .append(&mut span.metrics.positions);
+                                last_span.metrics.append(span.metrics.duplicate());
                             } else {
                                 last_line.push(span);
                             }
@@ -157,14 +146,10 @@ where
     }
 
     pub fn wrap_text(&mut self, width: f32) -> Result<(), Error> {
-        let rtl = self.lines.iter().all(|line| {
-            line.spans.iter().all(|span| {
-                span.metrics
-                    .positions
-                    .iter()
-                    .all(|p| p.level.map(|l| l.is_rtl()).unwrap_or_default())
-            })
-        });
+        let rtl = self
+            .lines
+            .iter()
+            .all(|line| line.spans.iter().all(|span| span.metrics.is_rtl()));
         let mut lines = self.lines.clone().into_iter().collect::<VecDeque<_>>();
         if rtl {
             lines.make_contiguous().reverse();
@@ -182,7 +167,7 @@ where
                 "current line {}",
                 line.spans
                     .iter()
-                    .map(|span| span.metrics.value.clone())
+                    .map(|span| span.metrics.value())
                     .collect::<Vec<_>>()
                     .join("")
             );
@@ -240,150 +225,24 @@ where
                     failed_with_no_acception = false;
                 }
                 current_line.spans.append(&mut approved_spans);
-                let mut dropped_metrics = vec![];
                 let span = &mut line.spans[0];
-                let fixed_value = span.metrics.value().to_string();
-                // Try to find a naive break point
-                let mut naive_break_index = 0;
-                let total_count = span.metrics.positions.len();
-                if rtl {
-                    span.metrics.positions.reverse();
-                }
-                // Textwrap cannot find a good break point, we directly drop chars
-                while let Some(m) = span.metrics.positions.pop() {
-                    dropped_metrics.push(m);
-                    let span_width = span.width();
-                    if span_width + current_line_width <= width {
-                        naive_break_index = span.metrics.positions.len();
-                        dropped_metrics.reverse();
-                        span.metrics.positions.append(&mut dropped_metrics);
-                        break;
-                    }
-                }
-                if rtl {
-                    naive_break_index = total_count - naive_break_index;
-                    span.metrics.positions.reverse();
-                }
-                // NOTE: str.nfc() & textwrap all handles RTL text well, so we do
-                // not take extra effort here
-                let display_str = fixed_value
-                    .nfc()
-                    .take(naive_break_index)
-                    .collect::<String>();
-                let display_width = textwrap::core::display_width(&display_str);
-                let options = Options::new(display_width)
-                    .wrap_algorithm(textwrap::WrapAlgorithm::FirstFit)
-                    .word_splitter(NoHyphenation);
-                let wrapped = textwrap::wrap(&*fixed_value, options);
-                log::trace!("{:?}", wrapped);
-                let mut real_index = 0;
-                log::debug!(
-                    "wrapped nfc count {}, metrics {}",
-                    wrapped.iter().map(|span| span.nfc().count()).sum::<usize>(),
-                    span.metrics.positions.len()
+                let new_metrics = span.metrics.split_by_width(
+                    span.size,
+                    span.letter_spacing,
+                    width - current_line_width,
                 );
-                if rtl {
-                    real_index = total_count - 1;
-                }
-                for seg in wrapped {
-                    let count = seg.nfc().count();
-                    if count == 0 {
-                        continue;
-                    }
-                    let span_values = seg.nfc().collect::<Vec<_>>();
-                    let mut current_real_index = real_index;
-                    while span.metrics.positions()[current_real_index].metrics.c == ' '
-                        && span_values
-                            .get(current_real_index - real_index)
-                            .map(|c| *c != ' ')
-                            .unwrap_or(true)
-                    {
-                        if rtl {
-                            current_real_index -= 1;
-                        } else {
-                            current_real_index += 1;
-                        }
-                    }
-                    let factor = span.size / span.metrics.units() as f32;
-                    let range = if rtl {
-                        (current_real_index + 1 - count)..current_real_index
-                    } else {
-                        current_real_index..(current_real_index + count)
-                    };
-                    let acc_seg_width = range
-                        .map(|index| span.metrics.positions.get(index).unwrap())
-                        .fold(0.0, |current, p| {
-                            current
-                                + p.kerning as f32 * factor
-                                + p.metrics.advanced_x as f32 * factor
-                                + span.letter_spacing
-                        });
-                    let acc_seg_width_with_space = if current_real_index == real_index {
-                        acc_seg_width
-                    } else {
-                        let range = if rtl {
-                            (current_real_index + 1 - count)..real_index
-                        } else {
-                            real_index..(current_real_index + count)
-                        };
-                        range
-                            .map(|index| span.metrics.positions.get(index).unwrap())
-                            .fold(0.0, |current, p| {
-                                current
-                                    + p.kerning as f32 * factor
-                                    + p.metrics.advanced_x as f32 * factor
-                                    + span.letter_spacing
-                            })
-                    };
-                    if current_line_width + acc_seg_width_with_space <= width {
-                        if rtl {
-                            real_index = current_real_index - count;
-                        } else {
-                            real_index = current_real_index + count;
-                        }
-                        current_line_width += acc_seg_width;
-                    } else {
-                        break;
-                    }
-                }
-                if (real_index == 0 && !rtl)
-                    || (rtl && real_index == span.metrics.positions.len() - 1)
-                {
-                    real_index = naive_break_index;
-                }
 
-                // Split here, create a new span
+                if new_metrics.count() != 0 {
+                    failed_with_no_acception = false;
+                }
                 let mut new_span = span.clone();
+                new_span.metrics = new_metrics;
                 new_span.broke_from_prev = true;
-                new_span.metrics.positions = span.metrics.positions.split_off(real_index);
-                let mut chars = fixed_value.nfc().collect::<Vec<_>>();
-                let new_chars = chars.split_off(real_index);
-                log::trace!(
-                    "real_index {} index {}, {:?}, {:?}",
-                    real_index,
-                    index,
-                    chars,
-                    new_chars
-                );
-                span.metrics.value = chars.into_iter().collect::<String>();
-                new_span.metrics.value = new_chars.into_iter().collect::<String>();
                 if rtl {
                     std::mem::swap(span, &mut new_span);
                 }
-                if !span.metrics.value.is_empty() {
+                if !span.metrics.count() == 0 {
                     current_line.spans.push(span.clone());
-                }
-                if span.metrics.value.nfc().count() != span.metrics.positions.len() {
-                    return Err(Error::MetricsMismatch {
-                        value: span.metrics.value.nfc().collect(),
-                        metrics: span.metrics.positions.clone(),
-                    });
-                }
-                if new_span.metrics.value.nfc().count() != new_span.metrics.positions.len() {
-                    return Err(Error::MetricsMismatch {
-                        value: new_span.metrics.value.nfc().collect(),
-                        metrics: new_span.metrics.positions.clone(),
-                    });
                 }
                 // Create a new line
                 result.push(std::mem::replace(
@@ -399,7 +258,7 @@ where
                     spans: vec![new_span],
                 };
                 // Check for swallowed leading space
-                if new_line.spans[0].metrics.value.starts_with(" ") {
+                if new_line.spans[0].metrics.value().starts_with(" ") {
                     new_line.spans[0].swallow_leading_space = true;
                 }
                 for span in line.spans.into_iter().skip(1) {
@@ -407,9 +266,6 @@ where
                 }
                 lines.push_front(new_line);
                 current_line_width = 0.0;
-                if real_index != 0 {
-                    failed_with_no_acception = false;
-                }
             }
         }
         if !current_line.spans.is_empty() {
@@ -424,11 +280,10 @@ where
     }
 
     pub fn valid(&self) -> bool {
-        !self.lines.iter().any(|line| {
-            line.spans
-                .iter()
-                .any(|span| span.metrics.positions.is_empty() && !span.metrics.value.is_empty())
-        })
+        !self
+            .lines
+            .iter()
+            .any(|line| line.spans.iter().any(|span| span.metrics.units() == 0.0))
     }
 
     pub fn value_string(&self) -> String {
@@ -437,7 +292,7 @@ where
             .map(|line| {
                 line.spans
                     .iter()
-                    .map(|span| span.metrics.value.clone())
+                    .map(|span| span.metrics.value())
                     .collect::<Vec<_>>()
                     .join("")
             })
@@ -451,7 +306,7 @@ where
             .fold(0, |current, line| line.spans.len() + current)
     }
 
-    pub fn ellipsis(&mut self, width: f32, height: f32, postfix: TextMetrics) {
+    pub fn ellipsis(&mut self, width: f32, height: f32, postfix: M) {
         // No need to do ellipsis
         if height - self.height() >= -0.01 && width - self.width() >= -0.01 {
             return;
@@ -487,7 +342,7 @@ where
                 removed = true;
                 let span = line.spans.last_mut().unwrap();
                 span.metrics.pop();
-                if span.metrics.positions.is_empty() {
+                if span.metrics.count() == 0 {
                     line.spans.pop();
                 }
             }
@@ -496,5 +351,222 @@ where
                 line.spans.push(ellipsis_span);
             }
         }
+    }
+}
+
+pub trait Metrics: Clone {
+    fn new(value: String) -> Self;
+    fn duplicate(&self) -> Self;
+    fn width(&self, font_size: f32, letter_spacing: f32) -> f32;
+    fn height(&self, font_size: f32, line_height: Option<f32>) -> f32;
+    fn ascender(&self, font_size: f32) -> f32;
+    fn line_gap(&self) -> f32;
+    fn slice(&self, start: u32, count: u32) -> Self;
+    fn value(&self) -> String;
+    fn units(&self) -> f32;
+    fn is_rtl(&self) -> bool;
+    fn append(&self, other: Self);
+    fn count(&self) -> u32;
+    /// replace this metrics with another, allowing fallback
+    /// logic
+    fn replace(&self, other: Self);
+    fn split_by_width(&self, font_size: f32, letter_spacing: f32, width: f32) -> Self;
+    fn chars(&self) -> Vec<char>;
+    fn trim_start(&self) {
+        loop {
+            let m = self.slice(0, 1);
+            if m.value() == " " {
+                self.replace(self.slice(1, self.count() as u32 - 1));
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn pop(&self) {
+        self.replace(self.slice(0, self.count() as u32 - 1));
+    }
+}
+
+impl Metrics for TextMetrics {
+    fn new(value: String) -> Self {
+        TextMetrics::new(value)
+    }
+
+    fn duplicate(&self) -> TextMetrics {
+        self.clone()
+    }
+
+    fn width(&self, font_size: f32, letter_spacing: f32) -> f32 {
+        TextMetrics::width(&self, font_size, letter_spacing)
+    }
+
+    fn height(&self, font_size: f32, line_height: Option<f32>) -> f32 {
+        TextMetrics::height(&self, font_size, line_height)
+    }
+
+    fn ascender(&self, font_size: f32) -> f32 {
+        let factor = font_size / self.units() as f32;
+        (self.ascender() as f32 + self.line_gap() as f32 / 2.0) * factor
+    }
+
+    fn line_gap(&self) -> f32 {
+        self.line_gap() as f32 / self.units() as f32
+    }
+
+    fn slice(&self, start: u32, count: u32) -> TextMetrics {
+        TextMetrics::slice(&self, start, count)
+    }
+
+    fn value(&self) -> String {
+        TextMetrics::value(&self)
+    }
+
+    fn is_rtl(&self) -> bool {
+        TextMetrics::is_rtl(&self)
+    }
+
+    fn append(&self, other: TextMetrics) {
+        TextMetrics::append(&self, other)
+    }
+
+    fn count(&self) -> u32 {
+        TextMetrics::count(&self) as u32
+    }
+
+    fn replace(&self, other: TextMetrics) {
+        TextMetrics::replace(&self, other)
+    }
+
+    fn split_by_width(&self, font_size: f32, letter_spacing: f32, width: f32) -> TextMetrics {
+        TextMetrics::split_by_width(&self, font_size, letter_spacing, width)
+    }
+
+    fn chars(&self) -> Vec<char> {
+        let p = self.positions.read().unwrap();
+        p.iter().map(|c| c.metrics.c).collect()
+    }
+
+    fn units(&self) -> f32 {
+        self.units() as f32
+    }
+}
+
+impl TextMetrics {
+    pub(crate) fn split_by_width(&self, font_size: f32, letter_spacing: f32, width: f32) -> Self {
+        // Try to find a naive break point
+        let total_count = self.count();
+        let mut naive_break_index = total_count;
+        let rtl = self.is_rtl();
+        if rtl {
+            self.positions.write().unwrap().reverse();
+        }
+        // Textwrap cannot find a good break point, we directly drop chars
+        loop {
+            let span_width = self.width_until(font_size, letter_spacing, naive_break_index);
+            if span_width <= width || naive_break_index == 0 {
+                break;
+            }
+            naive_break_index -= 1;
+        }
+        if rtl {
+            naive_break_index = total_count - naive_break_index;
+            self.positions.write().unwrap().reverse();
+        }
+
+        // NOTE: str.nfc() & textwrap all handles RTL text well, so we do
+        // not take extra effort here
+        let positions = self.positions.read().unwrap();
+        let display_str = positions
+            .iter()
+            .take(naive_break_index)
+            .map(|c| c.metrics.c)
+            .collect::<String>();
+        let display_width = textwrap::core::display_width(&display_str);
+        let options = Options::new(display_width)
+            .wrap_algorithm(textwrap::WrapAlgorithm::FirstFit)
+            .word_splitter(NoHyphenation);
+        let value = self.value();
+        let wrapped = textwrap::wrap(&value, options);
+        log::trace!("{:?}", wrapped);
+        let mut real_index = 0;
+        if rtl {
+            real_index = total_count - 1;
+        }
+        let mut current_line_width = 0.0;
+        for seg in wrapped {
+            let count = seg.nfc().count();
+            if count == 0 {
+                continue;
+            }
+            let span_values = seg.nfc().collect::<Vec<_>>();
+            let mut current_real_index = real_index;
+            while positions[current_real_index].metrics.c == ' '
+                && span_values
+                    .get(current_real_index - real_index)
+                    .map(|c| *c != ' ')
+                    .unwrap_or(true)
+            {
+                if rtl {
+                    current_real_index -= 1;
+                } else {
+                    current_real_index += 1;
+                }
+            }
+            let factor = font_size / self.units() as f32;
+            let range = if rtl {
+                (current_real_index + 1 - count)..current_real_index
+            } else {
+                current_real_index..(current_real_index + count)
+            };
+            let acc_seg_width =
+                range
+                    .map(|index| positions.get(index).unwrap())
+                    .fold(0.0, |current, p| {
+                        current
+                            + p.kerning as f32 * factor
+                            + p.metrics.advanced_x as f32 * factor
+                            + letter_spacing
+                    });
+            let acc_seg_width_with_space = if current_real_index == real_index {
+                acc_seg_width
+            } else {
+                let range = if rtl {
+                    (current_real_index + 1 - count)..real_index
+                } else {
+                    real_index..(current_real_index + count)
+                };
+                range
+                    .map(|index| positions.get(index).unwrap())
+                    .fold(0.0, |current, p| {
+                        current
+                            + p.kerning as f32 * factor
+                            + p.metrics.advanced_x as f32 * factor
+                            + letter_spacing
+                    })
+            };
+            if current_line_width + acc_seg_width_with_space <= width {
+                if rtl {
+                    real_index = current_real_index - count;
+                } else {
+                    real_index = current_real_index + count;
+                }
+                current_line_width += acc_seg_width;
+            } else {
+                break;
+            }
+        }
+        if (real_index == 0 && !rtl) || (rtl && real_index == positions.len() - 1) {
+            real_index = naive_break_index;
+        }
+
+        drop(positions);
+        // Split here, create a new span
+        let mut new_metrics = self.clone();
+        new_metrics.positions = {
+            let mut p = self.positions.write().unwrap();
+            Arc::new(RwLock::new(p.split_off(real_index)))
+        };
+        new_metrics
     }
 }

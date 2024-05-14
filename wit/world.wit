@@ -16,12 +16,42 @@ interface fontkit-interface {
         style-names: list<name>,
         names: list<name>,
         path: option<string>,
-        key: font-key
+        key: font-key,
+    }
+    record line-metrics {
+        position: s16,
+        thickness: s16,
     }
     resource text-metrics {
+        constructor(value: string);
+        duplicate: func() -> text-metrics;
         width: func(font-size: f32, letter-spacing: f32) -> f32;
         height: func(font-size: f32, line-height: option<f32>) -> f32;
         ascender: func(font-size: f32) -> f32;
+        line-gap: func() -> f32;
+        units: func() -> f32;
+        slice: func(start: u32, count: u32) -> text-metrics;
+        value: func() -> string;
+        is-rtl: func() -> bool;
+        append: func(other: text-metrics);
+        count: func() -> u32;
+        /// replace this metrics with another, allowing fallback logic
+        replace: func(other: text-metrics);
+        split-by-width: func(font-size: f32, letter-spacing: f32, width: f32) -> text-metrics;
+        chars: func() -> list<char>;
+    }
+    resource glyph-bitmap {
+        width: func() -> u32;
+        height: func() -> u32;
+        bitmap: func() -> list<u8>;
+        x-min: func() -> f32;
+        y-max: func() -> f32;
+        stroke-x: func() -> f32;
+        stroke-y: func() -> f32;
+        stroke-bitmap: func() -> option<tuple<list<u8>, u32>>;
+        advanced-x: func() -> f32;
+        ascender: func() -> f32;
+        descender: func() -> f32;
     }
     /// Instance of a single font
     resource font {
@@ -38,6 +68,8 @@ interface fontkit-interface {
         ascender: func() -> s16;
         descender: func() -> s16;
         units-per-em: func() -> u16;
+        bitmap: func(c: char, font-size: f32, stroke-width: f32) -> option<glyph-bitmap>;
+        underline-metrics: func() -> option<line-metrics>;
     }
     /// Stores font buffer and provides font-querying APIs
     resource font-kit {
@@ -59,6 +91,8 @@ interface fontkit-interface {
         len: func() -> u32;
         /// Remove a font matching the given key
         remove: func(key: font-key);
+        /// Measure a text with some fallback logic
+        measure: func(key: font-key, text: string) -> option<text-metrics>;
     }
     str-width-to-number: func(width: string) -> u16;
     number-width-to-str: func(width: u16) -> string;
