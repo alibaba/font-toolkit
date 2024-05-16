@@ -110,28 +110,6 @@ impl fi::GuestGlyphBitmap for GlyphBitmap {
     }
 }
 
-impl From<fi::FontKey> for FontKey {
-    fn from(value: fi::FontKey) -> Self {
-        FontKey {
-            weight: value.weight,
-            italic: value.italic,
-            stretch: value.stretch,
-            family: value.family,
-        }
-    }
-}
-
-impl From<FontKey> for fi::FontKey {
-    fn from(value: FontKey) -> Self {
-        fi::FontKey {
-            weight: value.weight,
-            italic: value.italic,
-            stretch: value.stretch,
-            family: value.family,
-        }
-    }
-}
-
 impl fi::GuestFontKit for FontKit {
     fn new() -> Self {
         FontKit::new()

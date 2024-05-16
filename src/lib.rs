@@ -25,7 +25,7 @@ pub use ras::*;
 pub use tiny_skia_path::{self, PathSegment};
 
 #[cfg(all(target_arch = "wasm32", feature = "wit"))]
-pub use bindings::exports::alibaba::fontkit::fontkit_interface::{FontKey, TextMetrics};
+pub use bindings::exports::alibaba::fontkit::fontkit_interface::TextMetrics;
 
 pub struct FontKit {
     fonts: dashmap::DashMap<font::FontKey, Font>,

@@ -2,6 +2,8 @@
 // Options used:
 //   * additional derives ["Clone", "Hash", "PartialEq", "PartialOrd", "Eq",
 //     "Default"]
+//   * with "alibaba:fontkit/commons" = "crate::font"
+use crate::font as __with_name0;
 #[allow(dead_code)]
 pub mod exports {
     #[allow(dead_code)]
@@ -16,23 +18,7 @@ pub mod exports {
                 static __FORCE_SECTION_REF: fn() =
                     super::super::super::super::__link_custom_section_describing_imports;
                 use super::super::super::super::_rt;
-                #[derive(Clone, Default, Eq, Hash, PartialEq, PartialOrd)]
-                pub struct FontKey {
-                    pub weight: Option<u16>,
-                    pub italic: Option<bool>,
-                    pub stretch: Option<u16>,
-                    pub family: _rt::String,
-                }
-                impl ::core::fmt::Debug for FontKey {
-                    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                        f.debug_struct("FontKey")
-                            .field("weight", &self.weight)
-                            .field("italic", &self.italic)
-                            .field("stretch", &self.stretch)
-                            .field("family", &self.family)
-                            .finish()
-                    }
-                }
+                pub type FontKey = super::super::super::super::__with_name0::FontKey;
                 #[derive(Clone, Default, Eq, Hash, PartialEq, PartialOrd)]
                 pub struct Name {
                     pub id: u16,
@@ -1160,7 +1146,7 @@ pub mod exports {
                     _rt::run_ctors_once();
                     let result0 = T::key(FontBorrow::lift(arg0 as u32 as usize).get());
                     let ptr1 = _RET_AREA.0.as_mut_ptr().cast::<u8>();
-                    let FontKey {
+                    let super::super::super::super::__with_name0::FontKey {
                         weight: weight2,
                         italic: italic2,
                         stretch: stretch2,
@@ -1381,7 +1367,7 @@ pub mod exports {
                     for (i, e) in vec5.into_iter().enumerate() {
                         let base = result5.add(i * 20);
                         {
-                            let FontKey {
+                            let super::super::super::super::__with_name0::FontKey {
                                 weight: weight3,
                                 italic: italic3,
                                 stretch: stretch3,
@@ -1486,7 +1472,7 @@ pub mod exports {
                     let bytes0 = _rt::Vec::from_raw_parts(arg7.cast(), len0, len0);
                     let result1 = T::query(
                         FontKitBorrow::lift(arg0 as u32 as usize).get(),
-                        FontKey {
+                        super::super::super::super::__with_name0::FontKey {
                             weight: match arg1 {
                                 0 => None,
                                 1 => {
@@ -1545,7 +1531,7 @@ pub mod exports {
                     let bytes0 = _rt::Vec::from_raw_parts(arg7.cast(), len0, len0);
                     let result1 = T::exact_match(
                         FontKitBorrow::lift(arg0 as u32 as usize).get(),
-                        FontKey {
+                        super::super::super::super::__with_name0::FontKey {
                             weight: match arg1 {
                                 0 => None,
                                 1 => {
@@ -1611,7 +1597,7 @@ pub mod exports {
                     for (i, e) in vec4.into_iter().enumerate() {
                         let base = result4.add(i * 20);
                         {
-                            let FontKey {
+                            let super::super::super::super::__with_name0::FontKey {
                                 weight: weight2,
                                 italic: italic2,
                                 stretch: stretch2,
@@ -1798,7 +1784,7 @@ pub mod exports {
                                     *base.add(16).cast::<u8>() = (0i32) as u8;
                                 }
                             };
-                            let FontKey {
+                            let super::super::super::super::__with_name0::FontKey {
                                 weight: weight10,
                                 italic: italic10,
                                 stretch: stretch10,
@@ -1930,7 +1916,7 @@ pub mod exports {
                     let bytes0 = _rt::Vec::from_raw_parts(arg7.cast(), len0, len0);
                     T::remove(
                         FontKitBorrow::lift(arg0 as u32 as usize).get(),
-                        FontKey {
+                        super::super::super::super::__with_name0::FontKey {
                             weight: match arg1 {
                                 0 => None,
                                 1 => {
@@ -1982,7 +1968,7 @@ pub mod exports {
                     let bytes1 = _rt::Vec::from_raw_parts(arg9.cast(), len1, len1);
                     let result2 = T::measure(
                         FontKitBorrow::lift(arg0 as u32 as usize).get(),
-                        FontKey {
+                        super::super::super::super::__with_name0::FontKey {
                             weight: match arg1 {
                                 0 => None,
                                 1 => {
@@ -2916,58 +2902,59 @@ pub(crate) use __export_fontkit_impl as export;
 #[cfg(target_arch = "wasm32")]
 #[link_section = "component-type:wit-bindgen:0.24.0:fontkit:encoded world"]
 #[doc(hidden)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 2582] = *b"\
-\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\x98\x13\x01A\x02\x01\
-A\x02\x01By\x01k{\x01k\x7f\x01r\x04\x06weight\0\x06italic\x01\x07stretch\0\x06fa\
-milys\x04\0\x08font-key\x03\0\x02\x01r\x03\x02id{\x04names\x0blanguage-id{\x04\0\
-\x04name\x03\0\x04\x01p\x05\x01ks\x01r\x04\x0bstyle-names\x06\x05names\x06\x04pa\
-th\x07\x03key\x03\x04\0\x09font-info\x03\0\x08\x01r\x02\x08position|\x09thicknes\
-s|\x04\0\x0cline-metrics\x03\0\x0a\x04\0\x0ctext-metrics\x03\x01\x04\0\x0cglyph-\
-bitmap\x03\x01\x04\0\x04font\x03\x01\x04\0\x08font-kit\x03\x01\x01i\x0c\x01@\x01\
-\x05values\0\x10\x04\0\x19[constructor]text-metrics\x01\x11\x01h\x0c\x01@\x01\x04\
-self\x12\0\x10\x04\0\x1e[method]text-metrics.duplicate\x01\x13\x01@\x03\x04self\x12\
-\x09font-sizev\x0eletter-spacingv\0v\x04\0\x1a[method]text-metrics.width\x01\x14\
-\x01kv\x01@\x03\x04self\x12\x09font-sizev\x0bline-height\x15\0v\x04\0\x1b[method\
-]text-metrics.height\x01\x16\x01@\x02\x04self\x12\x09font-sizev\0v\x04\0\x1d[met\
-hod]text-metrics.ascender\x01\x17\x01@\x01\x04self\x12\0v\x04\0\x1d[method]text-\
-metrics.line-gap\x01\x18\x04\0\x1a[method]text-metrics.units\x01\x18\x01@\x03\x04\
-self\x12\x05starty\x05county\0\x10\x04\0\x1a[method]text-metrics.slice\x01\x19\x01\
-@\x01\x04self\x12\0s\x04\0\x1a[method]text-metrics.value\x01\x1a\x01@\x01\x04sel\
-f\x12\0\x7f\x04\0\x1b[method]text-metrics.is-rtl\x01\x1b\x01@\x02\x04self\x12\x05\
-other\x10\x01\0\x04\0\x1b[method]text-metrics.append\x01\x1c\x01@\x01\x04self\x12\
-\0y\x04\0\x1a[method]text-metrics.count\x01\x1d\x04\0\x1c[method]text-metrics.re\
-place\x01\x1c\x01@\x04\x04self\x12\x09font-sizev\x0eletter-spacingv\x05widthv\0\x10\
-\x04\0#[method]text-metrics.split-by-width\x01\x1e\x01pt\x01@\x01\x04self\x12\0\x1f\
-\x04\0\x1a[method]text-metrics.chars\x01\x20\x01h\x0d\x01@\x01\x04self!\0y\x04\0\
-\x1a[method]glyph-bitmap.width\x01\"\x04\0\x1b[method]glyph-bitmap.height\x01\"\x01\
-p}\x01@\x01\x04self!\0#\x04\0\x1b[method]glyph-bitmap.bitmap\x01$\x01@\x01\x04se\
-lf!\0v\x04\0\x1a[method]glyph-bitmap.x-min\x01%\x04\0\x1a[method]glyph-bitmap.y-\
-max\x01%\x04\0\x1d[method]glyph-bitmap.stroke-x\x01%\x04\0\x1d[method]glyph-bitm\
-ap.stroke-y\x01%\x01o\x02#y\x01k&\x01@\x01\x04self!\0'\x04\0\"[method]glyph-bitm\
-ap.stroke-bitmap\x01(\x04\0\x1f[method]glyph-bitmap.advanced-x\x01%\x04\0\x1d[me\
-thod]glyph-bitmap.ascender\x01%\x04\0\x1e[method]glyph-bitmap.descender\x01%\x01\
-h\x0e\x01@\x02\x04self)\x01ct\0\x7f\x04\0\x16[method]font.has-glyph\x01*\x01@\x01\
-\x04self)\0#\x04\0\x13[method]font.buffer\x01+\x01@\x01\x04self)\0s\x04\0\x11[me\
-thod]font.path\x01,\x01@\x01\x04self)\0\x03\x04\0\x10[method]font.key\x01-\x01j\x01\
-\x10\x01s\x01@\x02\x04self)\x04texts\0.\x04\0\x14[method]font.measure\x01/\x01@\x01\
-\x04self)\0|\x04\0\x15[method]font.ascender\x010\x04\0\x16[method]font.descender\
-\x010\x01@\x01\x04self)\0{\x04\0\x19[method]font.units-per-em\x011\x01i\x0d\x01k\
-2\x01@\x04\x04self)\x01ct\x09font-sizev\x0cstroke-widthv\03\x04\0\x13[method]fon\
-t.bitmap\x014\x01k\x0b\x01@\x01\x04self)\05\x04\0\x1e[method]font.underline-metr\
-ics\x016\x01i\x0f\x01@\0\07\x04\0\x15[constructor]font-kit\x018\x01h\x0f\x01p\x03\
-\x01@\x02\x04self9\x06buffer#\0:\x04\0%[method]font-kit.add-font-from-buffer\x01\
-;\x01@\x02\x04self9\x04paths\x01\0\x04\0\x20[method]font-kit.add-search-path\x01\
-<\x01i\x0e\x01k=\x01@\x02\x04self9\x03key\x03\0>\x04\0\x16[method]font-kit.query\
-\x01?\x04\0\x1c[method]font-kit.exact-match\x01?\x01@\x01\x04self9\0:\x04\0\x1a[\
-method]font-kit.font-keys\x01@\x01p\x09\x01@\x01\x04self9\0\xc1\0\x04\0\x1b[meth\
-od]font-kit.fonts-info\x01B\x01@\x01\x04self9\0y\x04\0\x14[method]font-kit.len\x01\
-C\x01@\x02\x04self9\x03key\x03\x01\0\x04\0\x17[method]font-kit.remove\x01D\x01k\x10\
-\x01@\x03\x04self9\x03key\x03\x04texts\0\xc5\0\x04\0\x18[method]font-kit.measure\
-\x01F\x01@\x01\x05widths\0{\x04\0\x13str-width-to-number\x01G\x01@\x01\x05width{\
-\0s\x04\0\x13number-width-to-str\x01H\x04\x01!alibaba:fontkit/fontkit-interface\x05\
-\0\x04\x01\x17alibaba:fontkit/fontkit\x04\0\x0b\x0d\x01\0\x07fontkit\x03\0\0\0G\x09\
-producers\x01\x0cprocessed-by\x02\x0dwit-component\x070.202.0\x10wit-bindgen-rus\
-t\x060.24.0";
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 2644] = *b"\
+\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xd6\x13\x01A\x02\x01\
+A\x05\x01B\x04\x01k{\x01k\x7f\x01r\x04\x06weight\0\x06italic\x01\x07stretch\0\x06\
+familys\x04\0\x08font-key\x03\0\x02\x03\x01\x17alibaba:fontkit/commons\x05\0\x02\
+\x03\0\0\x08font-key\x01Bw\x02\x03\x02\x01\x01\x04\0\x08font-key\x03\0\0\x01r\x03\
+\x02id{\x04names\x0blanguage-id{\x04\0\x04name\x03\0\x02\x01p\x03\x01ks\x01r\x04\
+\x0bstyle-names\x04\x05names\x04\x04path\x05\x03key\x01\x04\0\x09font-info\x03\0\
+\x06\x01r\x02\x08position|\x09thickness|\x04\0\x0cline-metrics\x03\0\x08\x04\0\x0c\
+text-metrics\x03\x01\x04\0\x0cglyph-bitmap\x03\x01\x04\0\x04font\x03\x01\x04\0\x08\
+font-kit\x03\x01\x01i\x0a\x01@\x01\x05values\0\x0e\x04\0\x19[constructor]text-me\
+trics\x01\x0f\x01h\x0a\x01@\x01\x04self\x10\0\x0e\x04\0\x1e[method]text-metrics.\
+duplicate\x01\x11\x01@\x03\x04self\x10\x09font-sizev\x0eletter-spacingv\0v\x04\0\
+\x1a[method]text-metrics.width\x01\x12\x01kv\x01@\x03\x04self\x10\x09font-sizev\x0b\
+line-height\x13\0v\x04\0\x1b[method]text-metrics.height\x01\x14\x01@\x02\x04self\
+\x10\x09font-sizev\0v\x04\0\x1d[method]text-metrics.ascender\x01\x15\x01@\x01\x04\
+self\x10\0v\x04\0\x1d[method]text-metrics.line-gap\x01\x16\x04\0\x1a[method]text\
+-metrics.units\x01\x16\x01@\x03\x04self\x10\x05starty\x05county\0\x0e\x04\0\x1a[\
+method]text-metrics.slice\x01\x17\x01@\x01\x04self\x10\0s\x04\0\x1a[method]text-\
+metrics.value\x01\x18\x01@\x01\x04self\x10\0\x7f\x04\0\x1b[method]text-metrics.i\
+s-rtl\x01\x19\x01@\x02\x04self\x10\x05other\x0e\x01\0\x04\0\x1b[method]text-metr\
+ics.append\x01\x1a\x01@\x01\x04self\x10\0y\x04\0\x1a[method]text-metrics.count\x01\
+\x1b\x04\0\x1c[method]text-metrics.replace\x01\x1a\x01@\x04\x04self\x10\x09font-\
+sizev\x0eletter-spacingv\x05widthv\0\x0e\x04\0#[method]text-metrics.split-by-wid\
+th\x01\x1c\x01pt\x01@\x01\x04self\x10\0\x1d\x04\0\x1a[method]text-metrics.chars\x01\
+\x1e\x01h\x0b\x01@\x01\x04self\x1f\0y\x04\0\x1a[method]glyph-bitmap.width\x01\x20\
+\x04\0\x1b[method]glyph-bitmap.height\x01\x20\x01p}\x01@\x01\x04self\x1f\0!\x04\0\
+\x1b[method]glyph-bitmap.bitmap\x01\"\x01@\x01\x04self\x1f\0v\x04\0\x1a[method]g\
+lyph-bitmap.x-min\x01#\x04\0\x1a[method]glyph-bitmap.y-max\x01#\x04\0\x1d[method\
+]glyph-bitmap.stroke-x\x01#\x04\0\x1d[method]glyph-bitmap.stroke-y\x01#\x01o\x02\
+!y\x01k$\x01@\x01\x04self\x1f\0%\x04\0\"[method]glyph-bitmap.stroke-bitmap\x01&\x04\
+\0\x1f[method]glyph-bitmap.advanced-x\x01#\x04\0\x1d[method]glyph-bitmap.ascende\
+r\x01#\x04\0\x1e[method]glyph-bitmap.descender\x01#\x01h\x0c\x01@\x02\x04self'\x01\
+ct\0\x7f\x04\0\x16[method]font.has-glyph\x01(\x01@\x01\x04self'\0!\x04\0\x13[met\
+hod]font.buffer\x01)\x01@\x01\x04self'\0s\x04\0\x11[method]font.path\x01*\x01@\x01\
+\x04self'\0\x01\x04\0\x10[method]font.key\x01+\x01j\x01\x0e\x01s\x01@\x02\x04sel\
+f'\x04texts\0,\x04\0\x14[method]font.measure\x01-\x01@\x01\x04self'\0|\x04\0\x15\
+[method]font.ascender\x01.\x04\0\x16[method]font.descender\x01.\x01@\x01\x04self\
+'\0{\x04\0\x19[method]font.units-per-em\x01/\x01i\x0b\x01k0\x01@\x04\x04self'\x01\
+ct\x09font-sizev\x0cstroke-widthv\01\x04\0\x13[method]font.bitmap\x012\x01k\x09\x01\
+@\x01\x04self'\03\x04\0\x1e[method]font.underline-metrics\x014\x01i\x0d\x01@\0\0\
+5\x04\0\x15[constructor]font-kit\x016\x01h\x0d\x01p\x01\x01@\x02\x04self7\x06buf\
+fer!\08\x04\0%[method]font-kit.add-font-from-buffer\x019\x01@\x02\x04self7\x04pa\
+ths\x01\0\x04\0\x20[method]font-kit.add-search-path\x01:\x01i\x0c\x01k;\x01@\x02\
+\x04self7\x03key\x01\0<\x04\0\x16[method]font-kit.query\x01=\x04\0\x1c[method]fo\
+nt-kit.exact-match\x01=\x01@\x01\x04self7\08\x04\0\x1a[method]font-kit.font-keys\
+\x01>\x01p\x07\x01@\x01\x04self7\0?\x04\0\x1b[method]font-kit.fonts-info\x01@\x01\
+@\x01\x04self7\0y\x04\0\x14[method]font-kit.len\x01A\x01@\x02\x04self7\x03key\x01\
+\x01\0\x04\0\x17[method]font-kit.remove\x01B\x01k\x0e\x01@\x03\x04self7\x03key\x01\
+\x04texts\0\xc3\0\x04\0\x18[method]font-kit.measure\x01D\x01@\x01\x05widths\0{\x04\
+\0\x13str-width-to-number\x01E\x01@\x01\x05width{\0s\x04\0\x13number-width-to-st\
+r\x01F\x04\x01!alibaba:fontkit/fontkit-interface\x05\x02\x04\x01\x17alibaba:font\
+kit/fontkit\x04\0\x0b\x0d\x01\0\x07fontkit\x03\0\0\0G\x09producers\x01\x0cproces\
+sed-by\x02\x0dwit-component\x070.202.0\x10wit-bindgen-rust\x060.24.0";
 
 #[inline(never)]
 #[doc(hidden)]

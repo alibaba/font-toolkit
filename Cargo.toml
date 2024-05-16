@@ -15,6 +15,7 @@ package = "alibaba:fontkit"
 
 [package.metadata.component.bindings]
 derives = ["Clone", "Hash", "PartialEq", "PartialOrd", "Eq", "Default"]
+with = { "alibaba:fontkit/commons" = "crate::font" }
 
 [dependencies]
 ab_glyph_rasterizer = { version = "0.1.5", optional = true }

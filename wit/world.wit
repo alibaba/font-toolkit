@@ -1,12 +1,17 @@
 package alibaba:fontkit;
 
-interface fontkit-interface {
+interface commons {
     record font-key {
         weight: option<u16>,
         italic: option<bool>,
         stretch: option<u16>,
         family: string,
     }
+}
+
+interface fontkit-interface {
+    use commons.{font-key};
+
     record name {
         id: u16,
         name: string,
