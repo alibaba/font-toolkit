@@ -343,7 +343,6 @@ where
                         }
                         current_line_width += acc_seg_width;
                     } else {
-                        real_index = current_real_index;
                         break;
                     }
                 }
