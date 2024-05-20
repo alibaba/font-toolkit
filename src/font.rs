@@ -157,9 +157,9 @@ impl Font {
     }
 
     #[cfg(feature = "parse")]
-    pub(super) fn from_buffer(mut buffer: &[u8]) -> Result<Vec<Self>, Error> {
+    pub(super) fn from_buffer(buffer: &[u8]) -> Result<Vec<Self>, Error> {
         let mut variants = vec![Variant::Index(0)];
-        let mut result = if is_ttf(&buffer) {
+        let result = if is_ttf(&buffer) {
             buffer.to_vec()
         } else if is_otf(&buffer) {
             variants = (0..ttf_parser::fonts_in_collection(&buffer).unwrap_or(1))
@@ -167,26 +167,8 @@ impl Font {
                 .collect();
             buffer.to_vec()
         } else {
-            vec![]
+            buffer.to_vec()
         };
-
-        #[cfg(feature = "woff2")]
-        if is_woff2(&buffer) {
-            result = woff2::convert_woff2_to_ttf(&mut buffer)?;
-        }
-        #[cfg(feature = "parse")]
-        if is_woff(&buffer) {
-            use std::io::Cursor;
-
-            let reader = Cursor::new(buffer);
-            let mut otf_buf = Cursor::new(Vec::new());
-            crate::conv::woff::convert_woff_to_otf(reader, &mut otf_buf)?;
-            result = otf_buf.into_inner();
-        }
-        if result.is_empty() {
-            return Err(Error::UnsupportedMIME("unknown"));
-        }
-
         Ok(variants
             .into_iter()
             .map(|v| Font::from_buffer_with_variant(result.clone(), v))
@@ -197,7 +179,24 @@ impl Font {
     }
 
     #[cfg(feature = "parse")]
-    fn from_buffer_with_variant(buffer: Vec<u8>, variant: Variant) -> Result<Vec<Self>, Error> {
+    fn from_buffer_with_variant(mut buffer: Vec<u8>, variant: Variant) -> Result<Vec<Self>, Error> {
+        #[cfg(feature = "woff2")]
+        if is_woff2(&buffer) {
+            buffer = woff2::convert_woff2_to_ttf(&mut buffer.as_slice())?;
+        }
+        #[cfg(feature = "parse")]
+        if is_woff(&buffer) {
+            use std::io::Cursor;
+
+            let reader = Cursor::new(buffer);
+            let mut otf_buf = Cursor::new(Vec::new());
+            crate::conv::woff::convert_woff_to_otf(reader, &mut otf_buf)?;
+            buffer = otf_buf.into_inner();
+        }
+        if buffer.is_empty() {
+            return Err(Error::UnsupportedMIME("unknown"));
+        }
+
         use ttf_parser::name_id;
         let index = match variant {
             Variant::Index(i) => i,
