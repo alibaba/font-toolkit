@@ -369,14 +369,14 @@ pub trait Metrics: Clone {
     fn count(&self) -> u32;
     /// replace this metrics with another, allowing fallback
     /// logic
-    fn replace(&self, other: Self);
+    fn replace(&self, other: Self, fallback: bool);
     fn split_by_width(&self, font_size: f32, letter_spacing: f32, width: f32) -> Self;
     fn chars(&self) -> Vec<char>;
     fn trim_start(&self) {
         loop {
             let m = self.slice(0, 1);
             if m.value() == " " {
-                self.replace(self.slice(1, self.count() as u32 - 1));
+                self.replace(self.slice(1, self.count() as u32 - 1), false);
             } else {
                 break;
             }
@@ -384,7 +384,7 @@ pub trait Metrics: Clone {
     }
 
     fn pop(&self) {
-        self.replace(self.slice(0, self.count() as u32 - 1));
+        self.replace(self.slice(0, self.count() as u32 - 1), false);
     }
 }
 
@@ -434,8 +434,8 @@ impl Metrics for TextMetrics {
         TextMetrics::count(&self) as u32
     }
 
-    fn replace(&self, other: TextMetrics) {
-        TextMetrics::replace(&self, other)
+    fn replace(&self, other: TextMetrics, fallback: bool) {
+        TextMetrics::replace(&self, other, fallback)
     }
 
     fn split_by_width(&self, font_size: f32, letter_spacing: f32, width: f32) -> TextMetrics {

@@ -41,7 +41,7 @@ interface fontkit-interface {
         append: func(other: text-metrics);
         count: func() -> u32;
         /// replace this metrics with another, allowing fallback logic
-        replace: func(other: text-metrics);
+        replace: func(other: text-metrics, fallback: bool);
         split-by-width: func(font-size: f32, letter-spacing: f32, width: f32) -> text-metrics;
         chars: func() -> list<char>;
     }

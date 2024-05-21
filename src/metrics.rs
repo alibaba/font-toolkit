@@ -236,14 +236,23 @@ impl TextMetrics {
         }
     }
 
-    pub(crate) fn replace(&self, other: Self) {
+    pub(crate) fn replace(&self, other: Self, fallback: bool) {
         let mut p = self.positions.write().unwrap();
         let mut other_p = other.positions.write().unwrap();
-        *p = other_p.split_off(0);
+        let other_p = other_p.split_off(0);
         let content_height_factor = self.content_height() as f32 / other.content_height() as f32;
-        for c in p.iter_mut() {
-            c.metrics.missing = false;
-            c.metrics.mul_factor(content_height_factor);
+        if fallback {
+            for (c, p) in p.iter_mut().zip(other_p.into_iter()) {
+                if c.metrics.missing {
+                    *c = p;
+                    c.metrics.mul_factor(content_height_factor);
+                }
+            }
+        } else {
+            *p = other_p;
+            for c in p.iter_mut() {
+                c.metrics.mul_factor(content_height_factor);
+            }
         }
     }
 

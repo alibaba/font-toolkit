@@ -66,7 +66,7 @@ impl FontKit {
             .query(&font_key)
             .and_then(|font| font.measure(text).ok())
         {
-            Some(mut metrics) => {
+            Some(metrics) => {
                 let has_missing = metrics.has_missing();
                 let fallback_fontkey = self
                     .fallback_font_key
@@ -75,7 +75,7 @@ impl FontKit {
                 if has_missing {
                     if let Some(font) = fallback_fontkey.as_ref().and_then(|key| self.query(key)) {
                         if let Ok(new_metrics) = font.measure(text) {
-                            metrics.replace(new_metrics);
+                            metrics.replace(new_metrics, true);
                         }
                     }
                 }
@@ -85,7 +85,7 @@ impl FontKit {
                     if let Some(font) = self.emoji_font_key.as_ref().and_then(|key| self.query(key))
                     {
                         if let Ok(new_metrics) = font.measure(text) {
-                            metrics = new_metrics;
+                            metrics.replace(new_metrics, true);
                         }
                     }
                 }

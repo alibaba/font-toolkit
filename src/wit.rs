@@ -232,8 +232,8 @@ impl GuestTextMetrics for TextMetrics {
         self.count() as u32
     }
 
-    fn replace(&self, other: fi::TextMetrics) {
-        TextMetrics::replace(self, other.get::<TextMetrics>().clone());
+    fn replace(&self, other: fi::TextMetrics, fallback: bool) {
+        TextMetrics::replace(self, other.get::<TextMetrics>().clone(), fallback);
     }
 
     fn split_by_width(&self, font_size: f32, letter_spacing: f32, width: f32) -> fi::TextMetrics {
