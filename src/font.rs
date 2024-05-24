@@ -4,7 +4,6 @@ use byteorder::{BigEndian, ReadBytesExt};
 #[cfg(feature = "parse")]
 use ordered_float::OrderedFloat;
 use ouroboros::self_referencing;
-use serde::Serialize;
 #[cfg(feature = "parse")]
 use std::collections::HashMap;
 use std::fmt;
@@ -52,12 +51,10 @@ pub fn number_width_to_str(width: u16) -> String {
 #[derive(Clone, Hash, PartialEq, PartialOrd, Eq, Debug, Default)]
 pub struct FontKey {
     /// Font weight, same as CSS [font-weight](https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight#common_weight_name_mapping)
-    // #[serde(default = "GenericDefault::<400>::value")]
     pub weight: Option<u16>,
     /// Italic or not, boolean
     pub italic: Option<bool>,
     /// Font stretch, same as css [font-stretch](https://developer.mozilla.org/en-US/docs/Web/CSS/font-stretch)
-    // #[serde(default = "GenericDefault::<5>::value")]
     pub stretch: Option<u16>,
     /// Font family string
     pub family: String,
@@ -84,7 +81,7 @@ impl fmt::Display for FontKey {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug)]
 pub(super) struct Name {
     pub id: u16,
     pub name: String,
@@ -182,7 +179,7 @@ impl Font {
     fn from_buffer_with_variant(mut buffer: Vec<u8>, variant: Variant) -> Result<Vec<Self>, Error> {
         #[cfg(feature = "woff2")]
         if is_woff2(&buffer) {
-            buffer = woff2::convert_woff2_to_ttf(&mut buffer.as_slice())?;
+            buffer = woff2_patched::convert_woff2_to_ttf(&mut buffer.as_slice())?;
         }
         #[cfg(feature = "parse")]
         if is_woff(&buffer) {

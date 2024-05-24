@@ -32,9 +32,7 @@ pathfinder_geometry = { version = "0.5.1", optional = true }
 pathfinder_simd = { version = "0.5.2", optional = true, features = [
     "pf-no-simd",
 ] }
-serde = { version = "1.0.137", features = ["derive"] }
-serde_json = "1.0.81"
-textwrap = { version = "0.15.0", optional = true, default-features = false, features = [
+textwrap = { version = "0.16.1", optional = true, default-features = false, features = [
     "smawk",
     "unicode-linebreak",
 ] }
@@ -44,7 +42,7 @@ ttf-parser = "0.19.1"
 unicode-bidi = { version = "0.3.7", optional = true }
 unicode-normalization = { version = "0.1.19", optional = true }
 unicode-script = { version = "0.5.4", optional = true }
-woff2 = { git = "https://github.com/zimond/woff2-rs", rev = "0e25872", optional = true, version = "0.3.0" }
+woff2-patched = { version = "0.3.0", optional = true }
 png = { version = "0.17.13", optional = true }
 fast_image_resize = { version = "3.0.4", optional = true, features = [
     "only_u8x4",
@@ -55,7 +53,7 @@ wit-bindgen-rt = { version = "0.24.0", optional = true }
 
 [features]
 default = ["parse", "metrics", "ras", "wit"]
-parse = ["byteorder", "flate2", "woff2", "ordered-float"]
+parse = ["byteorder", "flate2", "woff2-patched", "ordered-float"]
 metrics = [
     "unicode-bidi",
     "unicode-normalization",

@@ -18,7 +18,7 @@ pub enum Error {
     GlyphNotFound { c: char },
     #[cfg(feature = "woff2")]
     #[error(transparent)]
-    Woff2(#[from] woff2::decode::DecodeError),
+    Woff2(#[from] woff2_patched::decode::DecodeError),
     #[error("Metrics mismatch: values {value:?} metrics {metrics:?}")]
     MetricsMismatch {
         value: Vec<char>,
