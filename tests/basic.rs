@@ -1,4 +1,4 @@
-use fontkit::{Error, FontKey};
+use fontkit::{Area, Error, FontKey, FontKit, Line, Span};
 use std::fs;
 use std::io::Read;
 
@@ -24,12 +24,35 @@ pub fn test_variable_font_loading() -> Result<(), Error> {
     let bitmap_1 = fontkit
         .query(&key)
         .and_then(|font| font.bitmap('G', 10.0, 0.0))
-        .map(|g| g.bitmap.iter().filter(|p| **p > 0).count());
+        .and_then(|g| Some(g.bitmap()?.iter().filter(|p| **p > 0).count()));
     key.family = "AlimamaFangYuanTiVF-Thin-Round".into();
     let bitmap_2 = fontkit
         .query(&key)
         .and_then(|font| font.bitmap('G', 10.0, 0.0))
-        .map(|g| g.bitmap.iter().filter(|p| **p > 0).count());
+        .and_then(|g| Some(g.bitmap()?.iter().filter(|p| **p > 0).count()));
     assert!(bitmap_1 > bitmap_2);
+    Ok(())
+}
+
+#[test]
+pub fn test_text_wrap() -> Result<(), Error> {
+    let fontkit = FontKit::new();
+    fontkit.search_fonts_from_path("examples/Dream_PossibleGB-Black.ttf")?;
+    let key = fontkit.font_keys().next().unwrap();
+    let mut area = Area::<()>::new();
+    let metrics = fontkit
+        .measure(key.clone(), " 傲冬黑色真皮皮衣 穿着舒适显瘦")
+        .unwrap();
+    let mut span = Span::default();
+    span.font_key = key.clone();
+    span.size = 66.0;
+    span.metrics = metrics;
+    area.lines.push(Line {
+        spans: vec![span],
+        hard_break: true,
+    });
+    area.unwrap_text();
+    area.wrap_text(576.0)?;
+    assert!(area.width() < 576.0);
     Ok(())
 }
