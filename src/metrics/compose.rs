@@ -241,7 +241,7 @@ where
                 if rtl {
                     std::mem::swap(span, &mut new_span);
                 }
-                if !span.metrics.count() == 0 {
+                if span.metrics.count() != 0 {
                     current_line.spans.push(span.clone());
                 }
                 // Create a new line
