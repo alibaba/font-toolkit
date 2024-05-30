@@ -563,10 +563,14 @@ impl TextMetrics {
         drop(positions);
         // Split here, create a new span
         let mut new_metrics = self.clone();
-        new_metrics.positions = {
-            let mut p = self.positions.write().unwrap();
-            Arc::new(RwLock::new(p.split_off(real_index)))
-        };
+        if real_index == 0 {
+            new_metrics.positions = Arc::new(RwLock::new(vec![]));
+        } else {
+            new_metrics.positions = {
+                let mut p = self.positions.write().unwrap();
+                Arc::new(RwLock::new(p.split_off(real_index)))
+            };
+        }
         new_metrics
     }
 }
