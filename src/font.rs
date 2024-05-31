@@ -177,7 +177,7 @@ impl Font {
 
     #[cfg(feature = "parse")]
     fn from_buffer_with_variant(mut buffer: Vec<u8>, variant: Variant) -> Result<Vec<Self>, Error> {
-        #[cfg(feature = "woff2")]
+        #[cfg(feature = "woff2-patched")]
         if is_woff2(&buffer) {
             buffer = woff2_patched::convert_woff2_to_ttf(&mut buffer.as_slice())?;
         }

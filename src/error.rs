@@ -16,7 +16,7 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error("Glyph {c} not found in font")]
     GlyphNotFound { c: char },
-    #[cfg(feature = "woff2")]
+    #[cfg(feature = "woff2-patched")]
     #[error(transparent)]
     Woff2(#[from] woff2_patched::decode::DecodeError),
     #[error("Metrics mismatch: values {value:?} metrics {metrics:?}")]

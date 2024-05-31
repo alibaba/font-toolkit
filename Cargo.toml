@@ -1,6 +1,6 @@
 [package]
 name = "fontkit"
-version = "0.6.0-beta.3"
+version = "0.6.0-beta.4"
 edition = "2021"
 authors = ["Zimon Dai <daizhuoxian@gmail.com>"]
 description = "A simple library for font loading and indexing"

@@ -35,6 +35,14 @@ pub fn test_variable_font_loading() -> Result<(), Error> {
 }
 
 #[test]
+pub fn test_search_font() -> Result<(), Error> {
+    let fontkit = FontKit::new();
+    fontkit.search_fonts_from_path("examples/AlimamaFangYuanTiVF.ttf")?;
+    assert_eq!(fontkit.len(), 18);
+    Ok(())
+}
+
+#[test]
 pub fn test_text_wrap() -> Result<(), Error> {
     let fontkit = FontKit::new();
     fontkit.search_fonts_from_path("examples/AlimamaFangYuanTiVF.ttf")?;
