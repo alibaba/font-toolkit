@@ -10,15 +10,15 @@
   "files": [
     "pkg/**/*",
     "index.js",
+    "index.d.ts",
     "Readme.md"
   ],
   "author": "Zimon Dai <daizhuoxian@gmail.com>",
   "license": "MIT",
-  "types": "./pkg/bundler/index.d.ts",
+  "types": "./index.d.ts",
   "scripts": {
-    "build": "wasm-pack build --target bundler --out-name index --out-dir pkg/bundler --release && wasm-pack build --target nodejs --out-name index --out-dir pkg/node --release && rm -rf pkg/bundler/package.json",
-    "build:wasi": "cargo build --release --target wasm32-wasi && mkdir -p pkg/wasi && cp target/wasm32-wasi/release/fontkit.wasm pkg/wasi/",
-    "test": "NODE_OPTIONS='--loader=tsx' ava",
+    "build": "cargo component build --release && jco transpile target/wasm32-wasi/release/fontkit.wasm -o pkg --no-namespaced-exports",
+    "test": "NODE_OPTIONS='--import=ts-node/esm --no-warnings' ava",
     "format:rs": "cargo fmt",
     "format:source": "prettier --config ./package.json --write './**/*.{js,ts,mjs}'",
     "format:yaml": "prettier --parser yaml --write './**/*.{yml,yaml}'",
@@ -41,7 +41,7 @@
     "eslint-plugin-sonarjs": "^0.12.0",
     "prettier": "^2.6.0",
     "ts-node": "^10.8.1",
-    "tsx": "^3.13.0",
+    "tsx": "^4.2.0",
     "typescript": "^4.7.3"
   },
   "ava": {
@@ -49,9 +49,8 @@
       "ts": "module"
     },
     "nodeArguments": [
-      "--loader=tsx"
+      "--loader=ts-node/esm"
     ],
-    "timeout": "2m",
     "environmentVariables": {
       "TS_NODE_PROJECT": "./tsconfig.json"
     }
@@ -66,7 +65,6 @@
   },
   "type": "module",
   "dependencies": {
-    "@bytecodealliance/preview2-shim": "^0.16.1",
-    "walkdir": "^0.4.1"
+    "@bytecodealliance/preview2-shim": "^0.16.1"
   }
 }
