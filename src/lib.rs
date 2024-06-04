@@ -1,5 +1,5 @@
+use dashmap::mapref::one::Ref;
 use std::collections::HashSet;
-use std::ops::Deref;
 #[cfg(feature = "parse")]
 use std::path::Path;
 pub use ttf_parser::LineMetrics;
@@ -68,10 +68,11 @@ impl FontKit {
         {
             Some(metrics) => {
                 let has_missing = metrics.has_missing();
-                let fallback_fontkey = self
-                    .fallback_font_key
-                    .as_ref()
-                    .and_then(|key| Some(self.query(&(key)(font_key.clone()))?.key()));
+                let fallback_fontkey = self.fallback_font_key.as_ref().and_then(|key| {
+                    let key = (key)(font_key.clone());
+                    let font = self.query(&key)?;
+                    Some(font.key().clone())
+                });
                 if has_missing {
                     if let Some(font) = fallback_fontkey.as_ref().and_then(|key| self.query(key)) {
                         if let Ok(new_metrics) = font.measure(text) {
@@ -143,11 +144,14 @@ impl FontKit {
         Ok(())
     }
 
-    pub fn exact_match(&self, key: &font::FontKey) -> Option<impl Deref<Target = Font> + '_> {
-        return self.fonts.iter().find(|font| *font.key() == *key);
+    pub fn exact_match(&self, key: &font::FontKey) -> Option<Ref<'_, FontKey, Font>> {
+        return self.fonts.get(key);
     }
 
-    pub fn query(&self, key: &font::FontKey) -> Option<impl Deref<Target = Font> + '_> {
+    pub fn query(&self, key: &font::FontKey) -> Option<Ref<'_, FontKey, Font>> {
+        if let Some(result) = self.exact_match(key) {
+            return Some(result as _);
+        }
         let mut filters = vec![Filter::Family(&key.family)];
         if let Some(italic) = key.italic {
             filters.push(Filter::Italic(italic));
@@ -173,14 +177,8 @@ impl FontKit {
                 Filter::Family(f) => {
                     is_family = true;
                     s.retain(|key| {
-                        key.family == f
-                            || self
-                                .fonts
-                                .get(key)
-                                .unwrap()
-                                .names
-                                .iter()
-                                .any(|n| n.name == f)
+                        let font = self.fonts.get(key).unwrap();
+                        font.has_name(f)
                     })
                 }
                 Filter::Italic(i) => s.retain(|key| key.italic == Some(i)),

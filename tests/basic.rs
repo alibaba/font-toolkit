@@ -25,11 +25,19 @@ pub fn test_variable_font_loading() -> Result<(), Error> {
         .query(&key)
         .and_then(|font| font.bitmap('G', 10.0, 0.0))
         .map(|g| g.bitmap().iter().filter(|p| **p > 0).count());
-    key.family = "AlimamaFangYuanTiVF-Thin-Round".into();
+    key.family = "AlimamaFangYuanTiVF-BoldRound".into();
+    assert!(fontkit.query(&key).is_some());
+    key.family = "AlimamaFangYuanTiVF-Thin".into();
+    assert!(fontkit.query(&key).is_none());
+    key.weight = Some(200);
+    key.italic = Some(false);
+    key.stretch = Some(5);
+    assert!(fontkit.query(&key).is_some());
     let bitmap_2 = fontkit
         .query(&key)
         .and_then(|font| font.bitmap('G', 10.0, 0.0))
         .map(|g| g.bitmap().iter().filter(|p| **p > 0).count());
+    assert!(bitmap_2.is_some());
     assert!(bitmap_1 > bitmap_2);
     Ok(())
 }

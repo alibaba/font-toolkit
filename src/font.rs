@@ -153,6 +153,26 @@ impl Font {
         self.key.clone()
     }
 
+    pub(super) fn has_name(&self, name: &str) -> bool {
+        if self.key.family == name {
+            return true;
+        }
+        if self.names.iter().any(|n| n.name == name) {
+            return true;
+        }
+        if let Variant::Instance { names, .. } = &self.variant {
+            use inflections::Inflect;
+            return names.iter().any(|n| {
+                n.postscript.name == name
+                    || n.postscript
+                        .name
+                        .replace(&n.sub_family.name, &n.sub_family.name.to_pascal_case())
+                        == name
+            });
+        }
+        false
+    }
+
     #[cfg(feature = "parse")]
     pub(super) fn from_buffer(buffer: &[u8]) -> Result<Vec<Self>, Error> {
         let mut variants = vec![Variant::Index(0)];
