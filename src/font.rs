@@ -153,6 +153,17 @@ impl Font {
         self.key.clone()
     }
 
+    pub fn variants(&self) -> Vec<(String, f32)> {
+        match &self.variant {
+            Variant::Instance { coords, axes, .. } => axes
+                .iter()
+                .map(|a| format!("{}", a.tag))
+                .zip(coords.iter().map(|c| c.0))
+                .collect(),
+            _ => vec![],
+        }
+    }
+
     pub(super) fn has_name(&self, name: &str) -> bool {
         if self.key.family == name {
             return true;

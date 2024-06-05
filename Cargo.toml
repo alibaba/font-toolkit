@@ -38,7 +38,7 @@ textwrap = { version = "0.16.1", optional = true, default-features = false, feat
 ] }
 thiserror = "1.0.30"
 tiny-skia-path = "0.11.1"
-ttf-parser = "0.19.1"
+ttf-parser = "0.21.1"
 unicode-bidi = { version = "0.3.7", optional = true }
 unicode-normalization = { version = "0.1.19", optional = true }
 unicode-script = { version = "0.5.4", optional = true }

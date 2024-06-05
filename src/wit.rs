@@ -61,6 +61,15 @@ impl fi::GuestFont for Font {
             thickness: m.thickness,
         })
     }
+
+    fn variation(&self) -> Option<Vec<(String, f32)>> {
+        let result = self.variants();
+        if result.is_empty() {
+            None
+        } else {
+            Some(result)
+        }
+    }
 }
 
 impl fi::GuestGlyphBitmap for GlyphBitmap {

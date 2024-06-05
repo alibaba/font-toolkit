@@ -1331,6 +1331,78 @@ pub mod exports {
                 }
                 #[doc(hidden)]
                 #[allow(non_snake_case)]
+                pub unsafe fn _export_method_font_variation_cabi<T: GuestFont>(
+                    arg0: *mut u8,
+                ) -> *mut u8 {
+                    #[cfg(target_arch = "wasm32")]
+                    _rt::run_ctors_once();
+                    let result0 = T::variation(FontBorrow::lift(arg0 as u32 as usize).get());
+                    let ptr1 = _RET_AREA.0.as_mut_ptr().cast::<u8>();
+                    match result0 {
+                        Some(e) => {
+                            *ptr1.add(0).cast::<u8>() = (1i32) as u8;
+                            let vec4 = e;
+                            let len4 = vec4.len();
+                            let layout4 =
+                                _rt::alloc::Layout::from_size_align_unchecked(vec4.len() * 12, 4);
+                            let result4 = if layout4.size() != 0 {
+                                let ptr = _rt::alloc::alloc(layout4).cast::<u8>();
+                                if ptr.is_null() {
+                                    _rt::alloc::handle_alloc_error(layout4);
+                                }
+                                ptr
+                            } else {
+                                {
+                                    ::core::ptr::null_mut()
+                                }
+                            };
+                            for (i, e) in vec4.into_iter().enumerate() {
+                                let base = result4.add(i * 12);
+                                {
+                                    let (t2_0, t2_1) = e;
+                                    let vec3 = (t2_0.into_bytes()).into_boxed_slice();
+                                    let ptr3 = vec3.as_ptr().cast::<u8>();
+                                    let len3 = vec3.len();
+                                    ::core::mem::forget(vec3);
+                                    *base.add(4).cast::<usize>() = len3;
+                                    *base.add(0).cast::<*mut u8>() = ptr3.cast_mut();
+                                    *base.add(8).cast::<f32>() = _rt::as_f32(t2_1);
+                                }
+                            }
+                            *ptr1.add(8).cast::<usize>() = len4;
+                            *ptr1.add(4).cast::<*mut u8>() = result4;
+                        }
+                        None => {
+                            *ptr1.add(0).cast::<u8>() = (0i32) as u8;
+                        }
+                    };
+                    ptr1
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn __post_return_method_font_variation<T: GuestFont>(arg0: *mut u8) {
+                    let l0 = i32::from(*arg0.add(0).cast::<u8>());
+                    match l0 {
+                        0 => (),
+                        _ => {
+                            let l3 = *arg0.add(4).cast::<*mut u8>();
+                            let l4 = *arg0.add(8).cast::<usize>();
+                            let base5 = l3;
+                            let len5 = l4;
+                            for i in 0..len5 {
+                                let base = base5.add(i * 12);
+                                {
+                                    let l1 = *base.add(0).cast::<*mut u8>();
+                                    let l2 = *base.add(4).cast::<usize>();
+                                    _rt::cabi_dealloc(l1, l2, 1);
+                                }
+                            }
+                            _rt::cabi_dealloc(base5, len5 * 12, 4);
+                        }
+                    }
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
                 pub unsafe fn _export_constructor_font_kit_cabi<T: GuestFontKit>() -> i32 {
                     #[cfg(target_arch = "wasm32")]
                     _rt::run_ctors_once();
@@ -2257,6 +2329,7 @@ pub mod exports {
                         stroke_width: f32,
                     ) -> Option<GlyphBitmap>;
                     fn underline_metrics(&self) -> Option<LineMetrics>;
+                    fn variation(&self) -> Option<_rt::Vec<(_rt::String, f32)>>;
                 }
                 pub trait GuestFontKit: 'static {
                     #[doc(hidden)]
@@ -2512,6 +2585,14 @@ pub mod exports {
     #[export_name = "alibaba:fontkit/fontkit-interface#[method]font.underline-metrics"]
     unsafe extern "C" fn export_method_font_underline_metrics(arg0: *mut u8,) -> *mut u8 {
       $($path_to_types)*::_export_method_font_underline_metrics_cabi::<<$ty as $($path_to_types)*::Guest>::Font>(arg0)
+    }
+    #[export_name = "alibaba:fontkit/fontkit-interface#[method]font.variation"]
+    unsafe extern "C" fn export_method_font_variation(arg0: *mut u8,) -> *mut u8 {
+      $($path_to_types)*::_export_method_font_variation_cabi::<<$ty as $($path_to_types)*::Guest>::Font>(arg0)
+    }
+    #[export_name = "cabi_post_alibaba:fontkit/fontkit-interface#[method]font.variation"]
+    unsafe extern "C" fn _post_return_method_font_variation(arg0: *mut u8,) {
+      $($path_to_types)*::__post_return_method_font_variation::<<$ty as $($path_to_types)*::Guest>::Font>(arg0)
     }
     #[export_name = "alibaba:fontkit/fontkit-interface#[constructor]font-kit"]
     unsafe extern "C" fn export_constructor_font_kit() -> i32 {
@@ -2905,11 +2986,11 @@ pub(crate) use __export_fontkit_impl as export;
 #[cfg(target_arch = "wasm32")]
 #[link_section = "component-type:wit-bindgen:0.25.0:fontkit:encoded world"]
 #[doc(hidden)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 2673] = *b"\
-\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xf3\x13\x01A\x02\x01\
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 2724] = *b"\
+\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xa6\x14\x01A\x02\x01\
 A\x05\x01B\x04\x01k{\x01k\x7f\x01r\x04\x06weight\0\x06italic\x01\x07stretch\0\x06\
 familys\x04\0\x08font-key\x03\0\x02\x03\x01\x17alibaba:fontkit/commons\x05\0\x02\
-\x03\0\0\x08font-key\x01Bx\x02\x03\x02\x01\x01\x04\0\x08font-key\x03\0\0\x01r\x03\
+\x03\0\0\x08font-key\x01B}\x02\x03\x02\x01\x01\x04\0\x08font-key\x03\0\0\x01r\x03\
 \x02id{\x04names\x0blanguage-id{\x04\0\x04name\x03\0\x02\x01p\x03\x01ks\x01r\x04\
 \x0bstyle-names\x04\x05names\x04\x04path\x05\x03key\x01\x04\0\x09font-info\x03\0\
 \x06\x01r\x02\x08position|\x09thickness|\x04\0\x0cline-metrics\x03\0\x08\x04\0\x0c\
@@ -2945,20 +3026,21 @@ ethod]font.has-glyph\x01)\x01@\x01\x04self(\0\"\x04\0\x13[method]font.buffer\x01
 r\x01/\x04\0\x16[method]font.descender\x01/\x01@\x01\x04self(\0{\x04\0\x19[metho\
 d]font.units-per-em\x010\x01i\x0b\x01k1\x01@\x04\x04self(\x01ct\x09font-sizev\x0c\
 stroke-widthv\02\x04\0\x13[method]font.bitmap\x013\x01k\x09\x01@\x01\x04self(\04\
-\x04\0\x1e[method]font.underline-metrics\x015\x01i\x0d\x01@\0\06\x04\0\x15[const\
-ructor]font-kit\x017\x01h\x0d\x01p\x01\x01@\x02\x04self8\x06buffer\"\09\x04\0%[m\
-ethod]font-kit.add-font-from-buffer\x01:\x01@\x02\x04self8\x04paths\x01\0\x04\0\x20\
-[method]font-kit.add-search-path\x01;\x01i\x0c\x01k<\x01@\x02\x04self8\x03key\x01\
-\0=\x04\0\x16[method]font-kit.query\x01>\x04\0\x1c[method]font-kit.exact-match\x01\
->\x01@\x01\x04self8\09\x04\0\x1a[method]font-kit.font-keys\x01?\x01p\x07\x01@\x01\
-\x04self8\0\xc0\0\x04\0\x1b[method]font-kit.fonts-info\x01A\x01@\x01\x04self8\0y\
-\x04\0\x14[method]font-kit.len\x01B\x01@\x02\x04self8\x03key\x01\x01\0\x04\0\x17\
-[method]font-kit.remove\x01C\x01k\x0e\x01@\x03\x04self8\x03key\x01\x04texts\0\xc4\
-\0\x04\0\x18[method]font-kit.measure\x01E\x01@\x01\x05widths\0{\x04\0\x13str-wid\
-th-to-number\x01F\x01@\x01\x05width{\0s\x04\0\x13number-width-to-str\x01G\x04\x01\
-!alibaba:fontkit/fontkit-interface\x05\x02\x04\x01\x17alibaba:fontkit/fontkit\x04\
-\0\x0b\x0d\x01\0\x07fontkit\x03\0\0\0G\x09producers\x01\x0cprocessed-by\x02\x0dw\
-it-component\x070.208.1\x10wit-bindgen-rust\x060.25.0";
+\x04\0\x1e[method]font.underline-metrics\x015\x01o\x02sv\x01p6\x01k7\x01@\x01\x04\
+self(\08\x04\0\x16[method]font.variation\x019\x01i\x0d\x01@\0\0:\x04\0\x15[const\
+ructor]font-kit\x01;\x01h\x0d\x01p\x01\x01@\x02\x04self<\x06buffer\"\0=\x04\0%[m\
+ethod]font-kit.add-font-from-buffer\x01>\x01@\x02\x04self<\x04paths\x01\0\x04\0\x20\
+[method]font-kit.add-search-path\x01?\x01i\x0c\x01k\xc0\0\x01@\x02\x04self<\x03k\
+ey\x01\0\xc1\0\x04\0\x16[method]font-kit.query\x01B\x04\0\x1c[method]font-kit.ex\
+act-match\x01B\x01@\x01\x04self<\0=\x04\0\x1a[method]font-kit.font-keys\x01C\x01\
+p\x07\x01@\x01\x04self<\0\xc4\0\x04\0\x1b[method]font-kit.fonts-info\x01E\x01@\x01\
+\x04self<\0y\x04\0\x14[method]font-kit.len\x01F\x01@\x02\x04self<\x03key\x01\x01\
+\0\x04\0\x17[method]font-kit.remove\x01G\x01k\x0e\x01@\x03\x04self<\x03key\x01\x04\
+texts\0\xc8\0\x04\0\x18[method]font-kit.measure\x01I\x01@\x01\x05widths\0{\x04\0\
+\x13str-width-to-number\x01J\x01@\x01\x05width{\0s\x04\0\x13number-width-to-str\x01\
+K\x04\x01!alibaba:fontkit/fontkit-interface\x05\x02\x04\x01\x17alibaba:fontkit/f\
+ontkit\x04\0\x0b\x0d\x01\0\x07fontkit\x03\0\0\0G\x09producers\x01\x0cprocessed-b\
+y\x02\x0dwit-component\x070.208.1\x10wit-bindgen-rust\x060.25.0";
 
 #[inline(never)]
 #[doc(hidden)]
