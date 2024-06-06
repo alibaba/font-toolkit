@@ -1,11 +1,12 @@
 [package]
 name = "fontkit"
-version = "0.6.0-beta.5"
+version = "0.6.0-beta.6"
 edition = "2021"
 authors = ["Zimon Dai <daizhuoxian@gmail.com>"]
 description = "A simple library for font loading and indexing"
 repository = "https://github.com/alibaba/font-toolkit"
 license = "MIT OR Apache-2.0"
+readme = "Readme.md"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
