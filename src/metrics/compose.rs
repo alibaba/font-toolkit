@@ -547,6 +547,10 @@ impl TextMetrics {
             };
             if current_line_width + acc_seg_width_with_space <= width {
                 if rtl {
+                    if current_real_index < count {
+                        real_index = 0;
+                        break;
+                    }
                     real_index = current_real_index - count;
                 } else {
                     real_index = current_real_index + count;
