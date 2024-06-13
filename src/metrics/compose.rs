@@ -333,23 +333,19 @@ where
         }
 
         if let Some(ref mut line) = self.lines.last_mut() {
-            let mut removed = false;
             while line.width() + postfix.width(ellipsis_span.size, ellipsis_span.letter_spacing)
                 - width
                 >= 0.01
                 && line.width() > 0.0
             {
-                removed = true;
                 let span = line.spans.last_mut().unwrap();
                 span.metrics.pop();
                 if span.metrics.count() == 0 {
                     line.spans.pop();
                 }
             }
-            if removed {
-                ellipsis_span.metrics = postfix;
-                line.spans.push(ellipsis_span);
-            }
+            ellipsis_span.metrics = postfix;
+            line.spans.push(ellipsis_span);
         }
     }
 }
