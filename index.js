@@ -5,3 +5,4 @@ export const FontKit = fontkitInterface.FontKit;
 export const TextMetrics = fontkitInterface.TextMetrics;
 export const numberWidthToStr = fontkitInterface.numberWidthToStr;
 export const strWidthToNumber = fontkitInterface.strWidthToNumber;
+export const GlyphBitmap = fontkitInterface.GlyphBitmap;
