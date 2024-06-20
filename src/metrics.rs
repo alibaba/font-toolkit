@@ -285,6 +285,9 @@ impl TextMetrics {
     }
 
     pub(crate) fn width_until(&self, font_size: f32, letter_spacing: f32, index: usize) -> f32 {
+        if self.units == 0 {
+            return 0.0;
+        }
         let factor = font_size / self.units as f32;
         let positions = self.positions.read().unwrap();
         positions.iter().take(index).fold(0.0, |current, p| {
