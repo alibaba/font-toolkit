@@ -70,6 +70,17 @@ impl fi::GuestFont for Font {
             Some(result)
         }
     }
+
+    fn glyph_path_string(&self, c: char) -> Option<String> {
+        use pathfinder_geometry::transform2d::Transform2F;
+        use pathfinder_geometry::vector::Vector2F;
+
+        let (_, mut outline) = self.outline(c)?;
+        let height = self.ascender() as f32 - self.descender() as f32;
+        outline.transform(&Transform2F::from_scale(Vector2F::new(1.0, -1.0)));
+        outline.transform(&Transform2F::from_translation(Vector2F::new(0.0, height)));
+        Some(format!("{:?}", outline))
+    }
 }
 
 impl fi::GuestGlyphBitmap for GlyphBitmap {

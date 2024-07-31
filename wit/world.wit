@@ -62,6 +62,8 @@ interface fontkit-interface {
     resource font {
         /// Check if the font has valid data for a character
         has-glyph: func(c: char) -> bool;
+        /// Output the svg path string of a glyph
+        glyph-path-string: func(c: char) -> option<string>;
         /// Return the font buffer
         buffer: func() -> list<u8>;
         /// Return the path if this font is added from searching a path
