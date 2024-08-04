@@ -54,7 +54,8 @@ pub fn test_search_font() -> Result<(), Error> {
 pub fn test_text_wrap() -> Result<(), Error> {
     let fontkit = FontKit::new();
     fontkit.search_fonts_from_path("examples/AlimamaFangYuanTiVF.ttf")?;
-    let key = fontkit.font_keys().next().unwrap();
+    let mut key = FontKey::default();
+    key.family = "AlimamaFangYuanTiVF-Medium-Round".into();
     let mut area = Area::<(), TextMetrics>::new();
     let metrics = fontkit
         .measure(&key, " 傲冬黑色真皮皮衣 穿着舒适显瘦")
@@ -69,6 +70,37 @@ pub fn test_text_wrap() -> Result<(), Error> {
     });
     area.unwrap_text();
     area.wrap_text(576.0)?;
-    assert_eq!(area.width(), 549.12);
+    assert_eq!(area.width(), 553.608);
+    Ok(())
+}
+
+#[test]
+pub fn test_complex_text_wrap() -> Result<(), Error> {
+    let fontkit = FontKit::new();
+    fontkit.search_fonts_from_path("examples/AlimamaFangYuanTiVF.ttf")?;
+    let mut key = FontKey::default();
+    key.family = "AlimamaFangYuanTiVF-Medium-Round".into();
+    let mut area = Area::<(), TextMetrics>::new();
+    let metrics = fontkit.measure(&key, "商家").unwrap();
+    let mut span = Span::default();
+    span.font_key = key.clone();
+    span.size = 32.0;
+    span.metrics = metrics;
+    let metrics = fontkit.measure(&key, "热卖12345678").unwrap();
+    let mut span_1 = Span::default();
+    span_1.font_key = key.clone();
+    span_1.size = 32.0;
+    span_1.metrics = metrics;
+    area.lines.push(Line {
+        spans: vec![span],
+        hard_break: true,
+    });
+    area.lines.push(Line {
+        spans: vec![span_1],
+        hard_break: true,
+    });
+    area.unwrap_text();
+    area.wrap_text(64.4)?;
+    assert_eq!(area.value_string(), "商家\n热卖\n1234\n567\n8");
     Ok(())
 }

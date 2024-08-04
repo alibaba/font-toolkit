@@ -288,14 +288,12 @@ impl TextMetrics {
         if self.units == 0 {
             return 0.0;
         }
-        let factor = font_size / self.units as f32;
         let positions = self.positions.read().unwrap();
         positions.iter().take(index).fold(0.0, |current, p| {
-            current
-                + p.kerning as f32 * factor
-                + p.metrics.advanced_x as f32 * factor
-                + letter_spacing
-        })
+            current + p.kerning as f32 + p.metrics.advanced_x as f32
+        }) * font_size
+            / self.units as f32
+            + letter_spacing * (index as f32)
     }
 
     pub fn width_trim_start(&self, font_size: f32, letter_spacing: f32) -> f32 {

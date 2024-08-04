@@ -184,7 +184,7 @@ where
             }
             is_first_line = false;
             let line_width = line.width();
-            if width - (line_width + current_line_width) >= -0.01 {
+            if width - (line_width + current_line_width) >= -0.1 {
                 // Current line fits, push all of its spans into current line
                 current_line_width += line_width;
                 current_line.spans.append(&mut line.spans);
@@ -195,7 +195,7 @@ where
                 // Go through spans to get the first not-fitting span
                 let index = line.spans.iter().position(|span| {
                     let span_width = span.width();
-                    if span_width + current_line_width <= width {
+                    if span_width + current_line_width - width <= 0.1 {
                         current_line_width += span_width;
                         false
                     } else {
@@ -231,7 +231,6 @@ where
                     span.letter_spacing,
                     width - current_line_width,
                 );
-
                 if new_metrics.count() != 0 {
                     failed_with_no_acception = false;
                 }
@@ -255,17 +254,23 @@ where
                 // Add new_span to next line
                 let mut new_line = Line {
                     hard_break: false,
-                    spans: vec![new_span],
+                    spans: vec![],
                 };
-                // Check for swallowed leading space
-                if new_line.spans[0].metrics.value().starts_with(" ") {
-                    new_line.spans[0].swallow_leading_space = true;
+                if new_span.metrics.count() != 0 {
+                    new_line.spans.push(new_span);
                 }
                 for span in line.spans.into_iter().skip(1) {
                     new_line.spans.push(span);
                 }
-                lines.push_front(new_line);
                 current_line_width = 0.0;
+                if new_line.spans.is_empty() {
+                    continue;
+                }
+                // Check for swallowed leading space
+                if new_line.spans[0].metrics.value().starts_with(" ") {
+                    new_line.spans[0].swallow_leading_space = true;
+                }
+                lines.push_front(new_line);
             }
         }
         if !current_line.spans.is_empty() {
@@ -460,7 +465,7 @@ impl TextMetrics {
         // Textwrap cannot find a good break point, we directly drop chars
         loop {
             let span_width = self.width_until(font_size, letter_spacing, naive_break_index);
-            if span_width <= width || naive_break_index == 0 {
+            if span_width - width <= 0.1 || naive_break_index == 0 {
                 break;
             }
             naive_break_index -= 1;
@@ -563,14 +568,10 @@ impl TextMetrics {
         drop(positions);
         // Split here, create a new span
         let mut new_metrics = self.clone();
-        if real_index == 0 {
-            new_metrics.positions = Arc::new(RwLock::new(vec![]));
-        } else {
-            new_metrics.positions = {
-                let mut p = self.positions.write().unwrap();
-                Arc::new(RwLock::new(p.split_off(real_index)))
-            };
-        }
+        new_metrics.positions = {
+            let mut p = self.positions.write().unwrap();
+            Arc::new(RwLock::new(p.split_off(real_index)))
+        };
         new_metrics
     }
 }
