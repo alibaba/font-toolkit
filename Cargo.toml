@@ -45,13 +45,17 @@ unicode-normalization = { version = "0.1.19", optional = true }
 unicode-script = { version = "0.5.4", optional = true }
 woff2-patched = { version = "0.3.0", optional = true }
 png = { version = "0.17.13", optional = true }
-fast_image_resize = { version = "3.0.4", optional = true, features = [
-    "only_u8x4",
-] }
 inflections = "1.1.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wit-bindgen-rt = { version = "0.24.0", optional = true }
+resize = { version = "0.8.6", default-features = false, features = ["std"] }
+rgb = "0.8.48"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+fast_image_resize = { version = "3.0.4", optional = true, features = [
+    "only_u8x4",
+] }
 
 [features]
 default = ["parse", "metrics", "ras", "wit"]

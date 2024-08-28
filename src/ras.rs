@@ -1,7 +1,4 @@
-use std::num::NonZeroU32;
-
 use ab_glyph_rasterizer::{Point as AbPoint, Rasterizer};
-use fast_image_resize::{FilterType, Image, MulDiv, PixelType, ResizeAlg, Resizer};
 use pathfinder_content::outline::{Contour, ContourIterFlags, Outline};
 #[cfg(feature = "optimize_stroke_broken")]
 use pathfinder_content::segment::{Segment, SegmentFlags, SegmentKind};
@@ -108,28 +105,51 @@ impl Font {
                 })
                 .ok()?;
             // https://docs.rs/fast_image_resize/latest/fast_image_resize/
-            let mut image = Image::from_vec_u8(
-                NonZeroU32::new(bitmap_width).unwrap(),
-                NonZeroU32::new(bitmap_height).unwrap(),
-                bitmap,
-                PixelType::U8x4,
-            )
-            .unwrap();
-            let alpha_mul_div = MulDiv::default();
-            alpha_mul_div
-                .multiply_alpha_inplace(&mut image.view_mut())
+            let result;
+            #[cfg(target_arch = "wasm32")]
+            {
+                use rgb::FromSlice;
+                let mut dst = vec![0; width as usize * height as usize * 4];
+                let mut resizer = resize::new(
+                    bitmap_width as usize,
+                    bitmap_height as usize,
+                    width as usize,
+                    height as usize,
+                    resize::Pixel::RGBA8,
+                    resize::Type::Lanczos3,
+                )
                 .unwrap();
-            let mut resizer = Resizer::new(ResizeAlg::Convolution(FilterType::Bilinear));
-            let mut dst = Image::new(
-                NonZeroU32::new(width as u32).unwrap(),
-                NonZeroU32::new(height as u32).unwrap(),
-                PixelType::U8x4,
-            );
-            resizer.resize(&image.view(), &mut dst.view_mut()).unwrap();
-            alpha_mul_div
-                .divide_alpha_inplace(&mut dst.view_mut())
+                let _ = resizer.resize(bitmap.as_rgba(), dst.as_rgba_mut());
+                result = dst;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                use fast_image_resize::{FilterType, Image, MulDiv, PixelType, ResizeAlg, Resizer};
+                use std::num::NonZeroU32;
+
+                let mut image = Image::from_vec_u8(
+                    NonZeroU32::new(bitmap_width).unwrap(),
+                    NonZeroU32::new(bitmap_height).unwrap(),
+                    bitmap,
+                    PixelType::U8x4,
+                )
                 .unwrap();
-            let bitmap = dst.into_vec();
+                let alpha_mul_div = MulDiv::default();
+                alpha_mul_div
+                    .multiply_alpha_inplace(&mut image.view_mut())
+                    .unwrap();
+                let mut resizer = Resizer::new(ResizeAlg::Convolution(FilterType::Bilinear));
+                let mut dst = Image::new(
+                    NonZeroU32::new(width as u32).unwrap(),
+                    NonZeroU32::new(height as u32).unwrap(),
+                    PixelType::U8x4,
+                );
+                resizer.resize(&image.view(), &mut dst.view_mut()).unwrap();
+                alpha_mul_div
+                    .divide_alpha_inplace(&mut dst.view_mut())
+                    .unwrap();
+                result = dst.into_vec();
+            }
 
             Some(GlyphBitmap(GlyphBitmapVariants::Raster(GlyphRasterImage {
                 width: width as u16,
@@ -139,7 +159,7 @@ impl Font {
                 ascender: a as f32 * factor,
                 descender: d as f32 * factor,
                 advanced_x,
-                bitmap,
+                bitmap: result,
             })))
         } else {
             let (glyph, outline) = self.outline(c)?;
