@@ -119,18 +119,9 @@ impl Font {
             })
         })?;
         let lsb = f.glyph_hor_side_bearing(glyph_id).unwrap_or(0);
-        let aw = f.glyph_hor_advance(glyph_id)?;
-        // FIXME: for variable fonts, this is not the same with harfbuzz, mainly
-        // because of phantom points not implemented in ttf-parser. More on this issue:
-        // https://github.com/RazrFalcon/rustybuzz/issues/91#issuecomment-1951036351
-        // here we simply copy rustybuzz's logic to ensure the "wrong" advance is always
-        // larger than the "actual" width, which could add some space to texts, but
-        // at least enough room.
-        let advanced_x = if f.is_variable() && f.has_non_default_variation_coordinates() {
-            (bbox.x_max + bbox.x_min) as u16
-        } else {
-            aw
-        };
+        // ttf-parser added phantom points support, so the original fix is no
+        // longer needed. Check history for details.
+        let advanced_x = f.glyph_hor_advance(glyph_id)?;
         Some(CharMetrics {
             c,
             glyph_id,

@@ -17,7 +17,7 @@
   "license": "MIT",
   "types": "./index.d.ts",
   "scripts": {
-    "build": "cargo component build --release && jco transpile target/wasm32-wasi/release/fontkit.wasm -o pkg --no-namespaced-exports",
+    "build": "cargo component build --release && jco transpile target/wasm32-wasip1/release/fontkit.wasm -o pkg --no-namespaced-exports",
     "test": "NODE_OPTIONS='--import=ts-node/esm --no-warnings' ava",
     "format:rs": "cargo fmt",
     "format:source": "prettier --config ./package.json --write './**/*.{js,ts,mjs}'",

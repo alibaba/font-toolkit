@@ -30,4 +30,6 @@ pub enum Error {
     #[cfg(feature = "png")]
     #[error(transparent)]
     PngDocde(#[from] png::DecodingError),
+    #[error(transparent)]
+    Utf8(#[from] std::string::FromUtf8Error),
 }

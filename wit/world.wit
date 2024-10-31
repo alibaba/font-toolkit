@@ -6,6 +6,7 @@ interface commons {
         italic: option<bool>,
         stretch: option<u16>,
         family: string,
+        variations: list<tuple<string, f32>>,
     }
 }
 
@@ -77,7 +78,6 @@ interface fontkit-interface {
         units-per-em: func() -> u16;
         bitmap: func(c: char, font-size: f32, stroke-width: f32) -> option<glyph-bitmap>;
         underline-metrics: func() -> option<line-metrics>;
-        variation: func() -> option<list<tuple<string, f32>>>;
     }
     /// Stores font buffer and provides font-querying APIs
     resource font-kit {

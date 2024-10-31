@@ -1197,6 +1197,7 @@ pub mod exports {
                         italic: italic2,
                         stretch: stretch2,
                         family: family2,
+                        variations: variations2,
                     } = result0;
                     match weight2 {
                         Some(e) => {
@@ -1234,6 +1235,35 @@ pub mod exports {
                     ::core::mem::forget(vec3);
                     *ptr1.add(16).cast::<usize>() = len3;
                     *ptr1.add(12).cast::<*mut u8>() = ptr3.cast_mut();
+                    let vec6 = variations2;
+                    let len6 = vec6.len();
+                    let layout6 = _rt::alloc::Layout::from_size_align_unchecked(vec6.len() * 12, 4);
+                    let result6 = if layout6.size() != 0 {
+                        let ptr = _rt::alloc::alloc(layout6).cast::<u8>();
+                        if ptr.is_null() {
+                            _rt::alloc::handle_alloc_error(layout6);
+                        }
+                        ptr
+                    } else {
+                        {
+                            ::core::ptr::null_mut()
+                        }
+                    };
+                    for (i, e) in vec6.into_iter().enumerate() {
+                        let base = result6.add(i * 12);
+                        {
+                            let (t4_0, t4_1) = e;
+                            let vec5 = (t4_0.into_bytes()).into_boxed_slice();
+                            let ptr5 = vec5.as_ptr().cast::<u8>();
+                            let len5 = vec5.len();
+                            ::core::mem::forget(vec5);
+                            *base.add(4).cast::<usize>() = len5;
+                            *base.add(0).cast::<*mut u8>() = ptr5.cast_mut();
+                            *base.add(8).cast::<f32>() = _rt::as_f32(t4_1);
+                        }
+                    }
+                    *ptr1.add(24).cast::<usize>() = len6;
+                    *ptr1.add(20).cast::<*mut u8>() = result6;
                     ptr1
                 }
                 #[doc(hidden)]
@@ -1242,6 +1272,19 @@ pub mod exports {
                     let l0 = *arg0.add(12).cast::<*mut u8>();
                     let l1 = *arg0.add(16).cast::<usize>();
                     _rt::cabi_dealloc(l0, l1, 1);
+                    let l4 = *arg0.add(20).cast::<*mut u8>();
+                    let l5 = *arg0.add(24).cast::<usize>();
+                    let base6 = l4;
+                    let len6 = l5;
+                    for i in 0..len6 {
+                        let base = base6.add(i * 12);
+                        {
+                            let l2 = *base.add(0).cast::<*mut u8>();
+                            let l3 = *base.add(4).cast::<usize>();
+                            _rt::cabi_dealloc(l2, l3, 1);
+                        }
+                    }
+                    _rt::cabi_dealloc(base6, len6 * 12, 4);
                 }
                 #[doc(hidden)]
                 #[allow(non_snake_case)]
@@ -1375,78 +1418,6 @@ pub mod exports {
                 }
                 #[doc(hidden)]
                 #[allow(non_snake_case)]
-                pub unsafe fn _export_method_font_variation_cabi<T: GuestFont>(
-                    arg0: *mut u8,
-                ) -> *mut u8 {
-                    #[cfg(target_arch = "wasm32")]
-                    _rt::run_ctors_once();
-                    let result0 = T::variation(FontBorrow::lift(arg0 as u32 as usize).get());
-                    let ptr1 = _RET_AREA.0.as_mut_ptr().cast::<u8>();
-                    match result0 {
-                        Some(e) => {
-                            *ptr1.add(0).cast::<u8>() = (1i32) as u8;
-                            let vec4 = e;
-                            let len4 = vec4.len();
-                            let layout4 =
-                                _rt::alloc::Layout::from_size_align_unchecked(vec4.len() * 12, 4);
-                            let result4 = if layout4.size() != 0 {
-                                let ptr = _rt::alloc::alloc(layout4).cast::<u8>();
-                                if ptr.is_null() {
-                                    _rt::alloc::handle_alloc_error(layout4);
-                                }
-                                ptr
-                            } else {
-                                {
-                                    ::core::ptr::null_mut()
-                                }
-                            };
-                            for (i, e) in vec4.into_iter().enumerate() {
-                                let base = result4.add(i * 12);
-                                {
-                                    let (t2_0, t2_1) = e;
-                                    let vec3 = (t2_0.into_bytes()).into_boxed_slice();
-                                    let ptr3 = vec3.as_ptr().cast::<u8>();
-                                    let len3 = vec3.len();
-                                    ::core::mem::forget(vec3);
-                                    *base.add(4).cast::<usize>() = len3;
-                                    *base.add(0).cast::<*mut u8>() = ptr3.cast_mut();
-                                    *base.add(8).cast::<f32>() = _rt::as_f32(t2_1);
-                                }
-                            }
-                            *ptr1.add(8).cast::<usize>() = len4;
-                            *ptr1.add(4).cast::<*mut u8>() = result4;
-                        }
-                        None => {
-                            *ptr1.add(0).cast::<u8>() = (0i32) as u8;
-                        }
-                    };
-                    ptr1
-                }
-                #[doc(hidden)]
-                #[allow(non_snake_case)]
-                pub unsafe fn __post_return_method_font_variation<T: GuestFont>(arg0: *mut u8) {
-                    let l0 = i32::from(*arg0.add(0).cast::<u8>());
-                    match l0 {
-                        0 => (),
-                        _ => {
-                            let l3 = *arg0.add(4).cast::<*mut u8>();
-                            let l4 = *arg0.add(8).cast::<usize>();
-                            let base5 = l3;
-                            let len5 = l4;
-                            for i in 0..len5 {
-                                let base = base5.add(i * 12);
-                                {
-                                    let l1 = *base.add(0).cast::<*mut u8>();
-                                    let l2 = *base.add(4).cast::<usize>();
-                                    _rt::cabi_dealloc(l1, l2, 1);
-                                }
-                            }
-                            _rt::cabi_dealloc(base5, len5 * 12, 4);
-                        }
-                    }
-                }
-                #[doc(hidden)]
-                #[allow(non_snake_case)]
                 pub unsafe fn _export_constructor_font_kit_cabi<T: GuestFontKit>() -> i32 {
                     #[cfg(target_arch = "wasm32")]
                     _rt::run_ctors_once();
@@ -1468,13 +1439,13 @@ pub mod exports {
                         _rt::Vec::from_raw_parts(arg1.cast(), len0, len0),
                     );
                     let ptr2 = _RET_AREA.0.as_mut_ptr().cast::<u8>();
-                    let vec5 = result1;
-                    let len5 = vec5.len();
-                    let layout5 = _rt::alloc::Layout::from_size_align_unchecked(vec5.len() * 20, 4);
-                    let result5 = if layout5.size() != 0 {
-                        let ptr = _rt::alloc::alloc(layout5).cast::<u8>();
+                    let vec8 = result1;
+                    let len8 = vec8.len();
+                    let layout8 = _rt::alloc::Layout::from_size_align_unchecked(vec8.len() * 28, 4);
+                    let result8 = if layout8.size() != 0 {
+                        let ptr = _rt::alloc::alloc(layout8).cast::<u8>();
                         if ptr.is_null() {
-                            _rt::alloc::handle_alloc_error(layout5);
+                            _rt::alloc::handle_alloc_error(layout8);
                         }
                         ptr
                     } else {
@@ -1482,14 +1453,15 @@ pub mod exports {
                             ::core::ptr::null_mut()
                         }
                     };
-                    for (i, e) in vec5.into_iter().enumerate() {
-                        let base = result5.add(i * 20);
+                    for (i, e) in vec8.into_iter().enumerate() {
+                        let base = result8.add(i * 28);
                         {
                             let super::super::super::super::__with_name0::FontKey {
                                 weight: weight3,
                                 italic: italic3,
                                 stretch: stretch3,
                                 family: family3,
+                                variations: variations3,
                             } = e;
                             match weight3 {
                                 Some(e) => {
@@ -1528,10 +1500,40 @@ pub mod exports {
                             ::core::mem::forget(vec4);
                             *base.add(16).cast::<usize>() = len4;
                             *base.add(12).cast::<*mut u8>() = ptr4.cast_mut();
+                            let vec7 = variations3;
+                            let len7 = vec7.len();
+                            let layout7 =
+                                _rt::alloc::Layout::from_size_align_unchecked(vec7.len() * 12, 4);
+                            let result7 = if layout7.size() != 0 {
+                                let ptr = _rt::alloc::alloc(layout7).cast::<u8>();
+                                if ptr.is_null() {
+                                    _rt::alloc::handle_alloc_error(layout7);
+                                }
+                                ptr
+                            } else {
+                                {
+                                    ::core::ptr::null_mut()
+                                }
+                            };
+                            for (i, e) in vec7.into_iter().enumerate() {
+                                let base = result7.add(i * 12);
+                                {
+                                    let (t5_0, t5_1) = e;
+                                    let vec6 = (t5_0.into_bytes()).into_boxed_slice();
+                                    let ptr6 = vec6.as_ptr().cast::<u8>();
+                                    let len6 = vec6.len();
+                                    ::core::mem::forget(vec6);
+                                    *base.add(4).cast::<usize>() = len6;
+                                    *base.add(0).cast::<*mut u8>() = ptr6.cast_mut();
+                                    *base.add(8).cast::<f32>() = _rt::as_f32(t5_1);
+                                }
+                            }
+                            *base.add(24).cast::<usize>() = len7;
+                            *base.add(20).cast::<*mut u8>() = result7;
                         }
                     }
-                    *ptr2.add(4).cast::<usize>() = len5;
-                    *ptr2.add(0).cast::<*mut u8>() = result5;
+                    *ptr2.add(4).cast::<usize>() = len8;
+                    *ptr2.add(0).cast::<*mut u8>() = result8;
                     ptr2
                 }
                 #[doc(hidden)]
@@ -1541,19 +1543,32 @@ pub mod exports {
                 >(
                     arg0: *mut u8,
                 ) {
-                    let l2 = *arg0.add(0).cast::<*mut u8>();
-                    let l3 = *arg0.add(4).cast::<usize>();
-                    let base4 = l2;
-                    let len4 = l3;
-                    for i in 0..len4 {
-                        let base = base4.add(i * 20);
+                    let l7 = *arg0.add(0).cast::<*mut u8>();
+                    let l8 = *arg0.add(4).cast::<usize>();
+                    let base9 = l7;
+                    let len9 = l8;
+                    for i in 0..len9 {
+                        let base = base9.add(i * 28);
                         {
                             let l0 = *base.add(12).cast::<*mut u8>();
                             let l1 = *base.add(16).cast::<usize>();
                             _rt::cabi_dealloc(l0, l1, 1);
+                            let l4 = *base.add(20).cast::<*mut u8>();
+                            let l5 = *base.add(24).cast::<usize>();
+                            let base6 = l4;
+                            let len6 = l5;
+                            for i in 0..len6 {
+                                let base = base6.add(i * 12);
+                                {
+                                    let l2 = *base.add(0).cast::<*mut u8>();
+                                    let l3 = *base.add(4).cast::<usize>();
+                                    _rt::cabi_dealloc(l2, l3, 1);
+                                }
+                            }
+                            _rt::cabi_dealloc(base6, len6 * 12, 4);
                         }
                     }
-                    _rt::cabi_dealloc(base4, len4 * 20, 4);
+                    _rt::cabi_dealloc(base9, len9 * 28, 4);
                 }
                 #[doc(hidden)]
                 #[allow(non_snake_case)]
@@ -1583,12 +1598,31 @@ pub mod exports {
                     arg6: i32,
                     arg7: *mut u8,
                     arg8: usize,
+                    arg9: *mut u8,
+                    arg10: usize,
                 ) -> *mut u8 {
                     #[cfg(target_arch = "wasm32")]
                     _rt::run_ctors_once();
                     let len0 = arg8;
                     let bytes0 = _rt::Vec::from_raw_parts(arg7.cast(), len0, len0);
-                    let result1 = T::query(
+                    let base5 = arg9;
+                    let len5 = arg10;
+                    let mut result5 = _rt::Vec::with_capacity(len5);
+                    for i in 0..len5 {
+                        let base = base5.add(i * 12);
+                        let e5 = {
+                            let l1 = *base.add(0).cast::<*mut u8>();
+                            let l2 = *base.add(4).cast::<usize>();
+                            let len3 = l2;
+                            let bytes3 = _rt::Vec::from_raw_parts(l1.cast(), len3, len3);
+                            let l4 = *base.add(8).cast::<f32>();
+
+                            (_rt::string_lift(bytes3), l4)
+                        };
+                        result5.push(e5);
+                    }
+                    _rt::cabi_dealloc(base5, len5 * 12, 4);
+                    let result6 = T::query(
                         FontKitBorrow::lift(arg0 as u32 as usize).get(),
                         super::super::super::super::__with_name0::FontKey {
                             weight: match arg1 {
@@ -1616,19 +1650,20 @@ pub mod exports {
                                 _ => _rt::invalid_enum_discriminant(),
                             },
                             family: _rt::string_lift(bytes0),
+                            variations: result5,
                         },
                     );
-                    let ptr2 = _RET_AREA.0.as_mut_ptr().cast::<u8>();
-                    match result1 {
+                    let ptr7 = _RET_AREA.0.as_mut_ptr().cast::<u8>();
+                    match result6 {
                         Some(e) => {
-                            *ptr2.add(0).cast::<u8>() = (1i32) as u8;
-                            *ptr2.add(4).cast::<i32>() = (e).take_handle() as i32;
+                            *ptr7.add(0).cast::<u8>() = (1i32) as u8;
+                            *ptr7.add(4).cast::<i32>() = (e).take_handle() as i32;
                         }
                         None => {
-                            *ptr2.add(0).cast::<u8>() = (0i32) as u8;
+                            *ptr7.add(0).cast::<u8>() = (0i32) as u8;
                         }
                     };
-                    ptr2
+                    ptr7
                 }
                 #[doc(hidden)]
                 #[allow(non_snake_case)]
@@ -1642,12 +1677,31 @@ pub mod exports {
                     arg6: i32,
                     arg7: *mut u8,
                     arg8: usize,
+                    arg9: *mut u8,
+                    arg10: usize,
                 ) -> *mut u8 {
                     #[cfg(target_arch = "wasm32")]
                     _rt::run_ctors_once();
                     let len0 = arg8;
                     let bytes0 = _rt::Vec::from_raw_parts(arg7.cast(), len0, len0);
-                    let result1 = T::exact_match(
+                    let base5 = arg9;
+                    let len5 = arg10;
+                    let mut result5 = _rt::Vec::with_capacity(len5);
+                    for i in 0..len5 {
+                        let base = base5.add(i * 12);
+                        let e5 = {
+                            let l1 = *base.add(0).cast::<*mut u8>();
+                            let l2 = *base.add(4).cast::<usize>();
+                            let len3 = l2;
+                            let bytes3 = _rt::Vec::from_raw_parts(l1.cast(), len3, len3);
+                            let l4 = *base.add(8).cast::<f32>();
+
+                            (_rt::string_lift(bytes3), l4)
+                        };
+                        result5.push(e5);
+                    }
+                    _rt::cabi_dealloc(base5, len5 * 12, 4);
+                    let result6 = T::exact_match(
                         FontKitBorrow::lift(arg0 as u32 as usize).get(),
                         super::super::super::super::__with_name0::FontKey {
                             weight: match arg1 {
@@ -1675,19 +1729,20 @@ pub mod exports {
                                 _ => _rt::invalid_enum_discriminant(),
                             },
                             family: _rt::string_lift(bytes0),
+                            variations: result5,
                         },
                     );
-                    let ptr2 = _RET_AREA.0.as_mut_ptr().cast::<u8>();
-                    match result1 {
+                    let ptr7 = _RET_AREA.0.as_mut_ptr().cast::<u8>();
+                    match result6 {
                         Some(e) => {
-                            *ptr2.add(0).cast::<u8>() = (1i32) as u8;
-                            *ptr2.add(4).cast::<i32>() = (e).take_handle() as i32;
+                            *ptr7.add(0).cast::<u8>() = (1i32) as u8;
+                            *ptr7.add(4).cast::<i32>() = (e).take_handle() as i32;
                         }
                         None => {
-                            *ptr2.add(0).cast::<u8>() = (0i32) as u8;
+                            *ptr7.add(0).cast::<u8>() = (0i32) as u8;
                         }
                     };
-                    ptr2
+                    ptr7
                 }
                 #[doc(hidden)]
                 #[allow(non_snake_case)]
@@ -1698,13 +1753,13 @@ pub mod exports {
                     _rt::run_ctors_once();
                     let result0 = T::font_keys(FontKitBorrow::lift(arg0 as u32 as usize).get());
                     let ptr1 = _RET_AREA.0.as_mut_ptr().cast::<u8>();
-                    let vec4 = result0;
-                    let len4 = vec4.len();
-                    let layout4 = _rt::alloc::Layout::from_size_align_unchecked(vec4.len() * 20, 4);
-                    let result4 = if layout4.size() != 0 {
-                        let ptr = _rt::alloc::alloc(layout4).cast::<u8>();
+                    let vec7 = result0;
+                    let len7 = vec7.len();
+                    let layout7 = _rt::alloc::Layout::from_size_align_unchecked(vec7.len() * 28, 4);
+                    let result7 = if layout7.size() != 0 {
+                        let ptr = _rt::alloc::alloc(layout7).cast::<u8>();
                         if ptr.is_null() {
-                            _rt::alloc::handle_alloc_error(layout4);
+                            _rt::alloc::handle_alloc_error(layout7);
                         }
                         ptr
                     } else {
@@ -1712,14 +1767,15 @@ pub mod exports {
                             ::core::ptr::null_mut()
                         }
                     };
-                    for (i, e) in vec4.into_iter().enumerate() {
-                        let base = result4.add(i * 20);
+                    for (i, e) in vec7.into_iter().enumerate() {
+                        let base = result7.add(i * 28);
                         {
                             let super::super::super::super::__with_name0::FontKey {
                                 weight: weight2,
                                 italic: italic2,
                                 stretch: stretch2,
                                 family: family2,
+                                variations: variations2,
                             } = e;
                             match weight2 {
                                 Some(e) => {
@@ -1758,10 +1814,40 @@ pub mod exports {
                             ::core::mem::forget(vec3);
                             *base.add(16).cast::<usize>() = len3;
                             *base.add(12).cast::<*mut u8>() = ptr3.cast_mut();
+                            let vec6 = variations2;
+                            let len6 = vec6.len();
+                            let layout6 =
+                                _rt::alloc::Layout::from_size_align_unchecked(vec6.len() * 12, 4);
+                            let result6 = if layout6.size() != 0 {
+                                let ptr = _rt::alloc::alloc(layout6).cast::<u8>();
+                                if ptr.is_null() {
+                                    _rt::alloc::handle_alloc_error(layout6);
+                                }
+                                ptr
+                            } else {
+                                {
+                                    ::core::ptr::null_mut()
+                                }
+                            };
+                            for (i, e) in vec6.into_iter().enumerate() {
+                                let base = result6.add(i * 12);
+                                {
+                                    let (t4_0, t4_1) = e;
+                                    let vec5 = (t4_0.into_bytes()).into_boxed_slice();
+                                    let ptr5 = vec5.as_ptr().cast::<u8>();
+                                    let len5 = vec5.len();
+                                    ::core::mem::forget(vec5);
+                                    *base.add(4).cast::<usize>() = len5;
+                                    *base.add(0).cast::<*mut u8>() = ptr5.cast_mut();
+                                    *base.add(8).cast::<f32>() = _rt::as_f32(t4_1);
+                                }
+                            }
+                            *base.add(24).cast::<usize>() = len6;
+                            *base.add(20).cast::<*mut u8>() = result6;
                         }
                     }
-                    *ptr1.add(4).cast::<usize>() = len4;
-                    *ptr1.add(0).cast::<*mut u8>() = result4;
+                    *ptr1.add(4).cast::<usize>() = len7;
+                    *ptr1.add(0).cast::<*mut u8>() = result7;
                     ptr1
                 }
                 #[doc(hidden)]
@@ -1769,19 +1855,32 @@ pub mod exports {
                 pub unsafe fn __post_return_method_font_kit_font_keys<T: GuestFontKit>(
                     arg0: *mut u8,
                 ) {
-                    let l2 = *arg0.add(0).cast::<*mut u8>();
-                    let l3 = *arg0.add(4).cast::<usize>();
-                    let base4 = l2;
-                    let len4 = l3;
-                    for i in 0..len4 {
-                        let base = base4.add(i * 20);
+                    let l7 = *arg0.add(0).cast::<*mut u8>();
+                    let l8 = *arg0.add(4).cast::<usize>();
+                    let base9 = l7;
+                    let len9 = l8;
+                    for i in 0..len9 {
+                        let base = base9.add(i * 28);
                         {
                             let l0 = *base.add(12).cast::<*mut u8>();
                             let l1 = *base.add(16).cast::<usize>();
                             _rt::cabi_dealloc(l0, l1, 1);
+                            let l4 = *base.add(20).cast::<*mut u8>();
+                            let l5 = *base.add(24).cast::<usize>();
+                            let base6 = l4;
+                            let len6 = l5;
+                            for i in 0..len6 {
+                                let base = base6.add(i * 12);
+                                {
+                                    let l2 = *base.add(0).cast::<*mut u8>();
+                                    let l3 = *base.add(4).cast::<usize>();
+                                    _rt::cabi_dealloc(l2, l3, 1);
+                                }
+                            }
+                            _rt::cabi_dealloc(base6, len6 * 12, 4);
                         }
                     }
-                    _rt::cabi_dealloc(base4, len4 * 20, 4);
+                    _rt::cabi_dealloc(base9, len9 * 28, 4);
                 }
                 #[doc(hidden)]
                 #[allow(non_snake_case)]
@@ -1792,14 +1891,14 @@ pub mod exports {
                     _rt::run_ctors_once();
                     let result0 = T::fonts_info(FontKitBorrow::lift(arg0 as u32 as usize).get());
                     let ptr1 = _RET_AREA.0.as_mut_ptr().cast::<u8>();
-                    let vec12 = result0;
-                    let len12 = vec12.len();
-                    let layout12 =
-                        _rt::alloc::Layout::from_size_align_unchecked(vec12.len() * 48, 4);
-                    let result12 = if layout12.size() != 0 {
-                        let ptr = _rt::alloc::alloc(layout12).cast::<u8>();
+                    let vec15 = result0;
+                    let len15 = vec15.len();
+                    let layout15 =
+                        _rt::alloc::Layout::from_size_align_unchecked(vec15.len() * 56, 4);
+                    let result15 = if layout15.size() != 0 {
+                        let ptr = _rt::alloc::alloc(layout15).cast::<u8>();
                         if ptr.is_null() {
-                            _rt::alloc::handle_alloc_error(layout12);
+                            _rt::alloc::handle_alloc_error(layout15);
                         }
                         ptr
                     } else {
@@ -1807,8 +1906,8 @@ pub mod exports {
                             ::core::ptr::null_mut()
                         }
                     };
-                    for (i, e) in vec12.into_iter().enumerate() {
-                        let base = result12.add(i * 48);
+                    for (i, e) in vec15.into_iter().enumerate() {
+                        let base = result15.add(i * 56);
                         {
                             let FontInfo {
                                 style_names: style_names2,
@@ -1907,6 +2006,7 @@ pub mod exports {
                                 italic: italic10,
                                 stretch: stretch10,
                                 family: family10,
+                                variations: variations10,
                             } = key2;
                             match weight10 {
                                 Some(e) => {
@@ -1945,10 +2045,40 @@ pub mod exports {
                             ::core::mem::forget(vec11);
                             *base.add(44).cast::<usize>() = len11;
                             *base.add(40).cast::<*mut u8>() = ptr11.cast_mut();
+                            let vec14 = variations10;
+                            let len14 = vec14.len();
+                            let layout14 =
+                                _rt::alloc::Layout::from_size_align_unchecked(vec14.len() * 12, 4);
+                            let result14 = if layout14.size() != 0 {
+                                let ptr = _rt::alloc::alloc(layout14).cast::<u8>();
+                                if ptr.is_null() {
+                                    _rt::alloc::handle_alloc_error(layout14);
+                                }
+                                ptr
+                            } else {
+                                {
+                                    ::core::ptr::null_mut()
+                                }
+                            };
+                            for (i, e) in vec14.into_iter().enumerate() {
+                                let base = result14.add(i * 12);
+                                {
+                                    let (t12_0, t12_1) = e;
+                                    let vec13 = (t12_0.into_bytes()).into_boxed_slice();
+                                    let ptr13 = vec13.as_ptr().cast::<u8>();
+                                    let len13 = vec13.len();
+                                    ::core::mem::forget(vec13);
+                                    *base.add(4).cast::<usize>() = len13;
+                                    *base.add(0).cast::<*mut u8>() = ptr13.cast_mut();
+                                    *base.add(8).cast::<f32>() = _rt::as_f32(t12_1);
+                                }
+                            }
+                            *base.add(52).cast::<usize>() = len14;
+                            *base.add(48).cast::<*mut u8>() = result14;
                         }
                     }
-                    *ptr1.add(4).cast::<usize>() = len12;
-                    *ptr1.add(0).cast::<*mut u8>() = result12;
+                    *ptr1.add(4).cast::<usize>() = len15;
+                    *ptr1.add(0).cast::<*mut u8>() = result15;
                     ptr1
                 }
                 #[doc(hidden)]
@@ -1956,12 +2086,12 @@ pub mod exports {
                 pub unsafe fn __post_return_method_font_kit_fonts_info<T: GuestFontKit>(
                     arg0: *mut u8,
                 ) {
-                    let l15 = *arg0.add(0).cast::<*mut u8>();
-                    let l16 = *arg0.add(4).cast::<usize>();
-                    let base17 = l15;
-                    let len17 = l16;
-                    for i in 0..len17 {
-                        let base = base17.add(i * 48);
+                    let l20 = *arg0.add(0).cast::<*mut u8>();
+                    let l21 = *arg0.add(4).cast::<usize>();
+                    let base22 = l20;
+                    let len22 = l21;
+                    for i in 0..len22 {
+                        let base = base22.add(i * 56);
                         {
                             let l2 = *base.add(0).cast::<*mut u8>();
                             let l3 = *base.add(4).cast::<usize>();
@@ -2001,9 +2131,22 @@ pub mod exports {
                             let l13 = *base.add(40).cast::<*mut u8>();
                             let l14 = *base.add(44).cast::<usize>();
                             _rt::cabi_dealloc(l13, l14, 1);
+                            let l17 = *base.add(48).cast::<*mut u8>();
+                            let l18 = *base.add(52).cast::<usize>();
+                            let base19 = l17;
+                            let len19 = l18;
+                            for i in 0..len19 {
+                                let base = base19.add(i * 12);
+                                {
+                                    let l15 = *base.add(0).cast::<*mut u8>();
+                                    let l16 = *base.add(4).cast::<usize>();
+                                    _rt::cabi_dealloc(l15, l16, 1);
+                                }
+                            }
+                            _rt::cabi_dealloc(base19, len19 * 12, 4);
                         }
                     }
-                    _rt::cabi_dealloc(base17, len17 * 48, 4);
+                    _rt::cabi_dealloc(base22, len22 * 56, 4);
                 }
                 #[doc(hidden)]
                 #[allow(non_snake_case)]
@@ -2027,11 +2170,30 @@ pub mod exports {
                     arg6: i32,
                     arg7: *mut u8,
                     arg8: usize,
+                    arg9: *mut u8,
+                    arg10: usize,
                 ) {
                     #[cfg(target_arch = "wasm32")]
                     _rt::run_ctors_once();
                     let len0 = arg8;
                     let bytes0 = _rt::Vec::from_raw_parts(arg7.cast(), len0, len0);
+                    let base5 = arg9;
+                    let len5 = arg10;
+                    let mut result5 = _rt::Vec::with_capacity(len5);
+                    for i in 0..len5 {
+                        let base = base5.add(i * 12);
+                        let e5 = {
+                            let l1 = *base.add(0).cast::<*mut u8>();
+                            let l2 = *base.add(4).cast::<usize>();
+                            let len3 = l2;
+                            let bytes3 = _rt::Vec::from_raw_parts(l1.cast(), len3, len3);
+                            let l4 = *base.add(8).cast::<f32>();
+
+                            (_rt::string_lift(bytes3), l4)
+                        };
+                        result5.push(e5);
+                    }
+                    _rt::cabi_dealloc(base5, len5 * 12, 4);
                     T::remove(
                         FontKitBorrow::lift(arg0 as u32 as usize).get(),
                         super::super::super::super::__with_name0::FontKey {
@@ -2060,6 +2222,7 @@ pub mod exports {
                                 _ => _rt::invalid_enum_discriminant(),
                             },
                             family: _rt::string_lift(bytes0),
+                            variations: result5,
                         },
                     );
                 }
@@ -2077,14 +2240,33 @@ pub mod exports {
                     arg8: usize,
                     arg9: *mut u8,
                     arg10: usize,
+                    arg11: *mut u8,
+                    arg12: usize,
                 ) -> *mut u8 {
                     #[cfg(target_arch = "wasm32")]
                     _rt::run_ctors_once();
                     let len0 = arg8;
                     let bytes0 = _rt::Vec::from_raw_parts(arg7.cast(), len0, len0);
-                    let len1 = arg10;
-                    let bytes1 = _rt::Vec::from_raw_parts(arg9.cast(), len1, len1);
-                    let result2 = T::measure(
+                    let base5 = arg9;
+                    let len5 = arg10;
+                    let mut result5 = _rt::Vec::with_capacity(len5);
+                    for i in 0..len5 {
+                        let base = base5.add(i * 12);
+                        let e5 = {
+                            let l1 = *base.add(0).cast::<*mut u8>();
+                            let l2 = *base.add(4).cast::<usize>();
+                            let len3 = l2;
+                            let bytes3 = _rt::Vec::from_raw_parts(l1.cast(), len3, len3);
+                            let l4 = *base.add(8).cast::<f32>();
+
+                            (_rt::string_lift(bytes3), l4)
+                        };
+                        result5.push(e5);
+                    }
+                    _rt::cabi_dealloc(base5, len5 * 12, 4);
+                    let len6 = arg12;
+                    let bytes6 = _rt::Vec::from_raw_parts(arg11.cast(), len6, len6);
+                    let result7 = T::measure(
                         FontKitBorrow::lift(arg0 as u32 as usize).get(),
                         super::super::super::super::__with_name0::FontKey {
                             weight: match arg1 {
@@ -2112,20 +2294,21 @@ pub mod exports {
                                 _ => _rt::invalid_enum_discriminant(),
                             },
                             family: _rt::string_lift(bytes0),
+                            variations: result5,
                         },
-                        _rt::string_lift(bytes1),
+                        _rt::string_lift(bytes6),
                     );
-                    let ptr3 = _RET_AREA.0.as_mut_ptr().cast::<u8>();
-                    match result2 {
+                    let ptr8 = _RET_AREA.0.as_mut_ptr().cast::<u8>();
+                    match result7 {
                         Some(e) => {
-                            *ptr3.add(0).cast::<u8>() = (1i32) as u8;
-                            *ptr3.add(4).cast::<i32>() = (e).take_handle() as i32;
+                            *ptr8.add(0).cast::<u8>() = (1i32) as u8;
+                            *ptr8.add(4).cast::<i32>() = (e).take_handle() as i32;
                         }
                         None => {
-                            *ptr3.add(0).cast::<u8>() = (0i32) as u8;
+                            *ptr8.add(0).cast::<u8>() = (0i32) as u8;
                         }
                     };
-                    ptr3
+                    ptr8
                 }
                 #[doc(hidden)]
                 #[allow(non_snake_case)]
@@ -2375,7 +2558,6 @@ pub mod exports {
                         stroke_width: f32,
                     ) -> Option<GlyphBitmap>;
                     fn underline_metrics(&self) -> Option<LineMetrics>;
-                    fn variation(&self) -> Option<_rt::Vec<(_rt::String, f32)>>;
                 }
                 pub trait GuestFontKit: 'static {
                     #[doc(hidden)]
@@ -2640,14 +2822,6 @@ pub mod exports {
     unsafe extern "C" fn export_method_font_underline_metrics(arg0: *mut u8,) -> *mut u8 {
       $($path_to_types)*::_export_method_font_underline_metrics_cabi::<<$ty as $($path_to_types)*::Guest>::Font>(arg0)
     }
-    #[export_name = "alibaba:fontkit/fontkit-interface#[method]font.variation"]
-    unsafe extern "C" fn export_method_font_variation(arg0: *mut u8,) -> *mut u8 {
-      $($path_to_types)*::_export_method_font_variation_cabi::<<$ty as $($path_to_types)*::Guest>::Font>(arg0)
-    }
-    #[export_name = "cabi_post_alibaba:fontkit/fontkit-interface#[method]font.variation"]
-    unsafe extern "C" fn _post_return_method_font_variation(arg0: *mut u8,) {
-      $($path_to_types)*::__post_return_method_font_variation::<<$ty as $($path_to_types)*::Guest>::Font>(arg0)
-    }
     #[export_name = "alibaba:fontkit/fontkit-interface#[constructor]font-kit"]
     unsafe extern "C" fn export_constructor_font_kit() -> i32 {
       $($path_to_types)*::_export_constructor_font_kit_cabi::<<$ty as $($path_to_types)*::Guest>::FontKit>()
@@ -2665,12 +2839,12 @@ pub mod exports {
       $($path_to_types)*::_export_method_font_kit_add_search_path_cabi::<<$ty as $($path_to_types)*::Guest>::FontKit>(arg0, arg1, arg2)
     }
     #[export_name = "alibaba:fontkit/fontkit-interface#[method]font-kit.query"]
-    unsafe extern "C" fn export_method_font_kit_query(arg0: *mut u8,arg1: i32,arg2: i32,arg3: i32,arg4: i32,arg5: i32,arg6: i32,arg7: *mut u8,arg8: usize,) -> *mut u8 {
-      $($path_to_types)*::_export_method_font_kit_query_cabi::<<$ty as $($path_to_types)*::Guest>::FontKit>(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
+    unsafe extern "C" fn export_method_font_kit_query(arg0: *mut u8,arg1: i32,arg2: i32,arg3: i32,arg4: i32,arg5: i32,arg6: i32,arg7: *mut u8,arg8: usize,arg9: *mut u8,arg10: usize,) -> *mut u8 {
+      $($path_to_types)*::_export_method_font_kit_query_cabi::<<$ty as $($path_to_types)*::Guest>::FontKit>(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10)
     }
     #[export_name = "alibaba:fontkit/fontkit-interface#[method]font-kit.exact-match"]
-    unsafe extern "C" fn export_method_font_kit_exact_match(arg0: *mut u8,arg1: i32,arg2: i32,arg3: i32,arg4: i32,arg5: i32,arg6: i32,arg7: *mut u8,arg8: usize,) -> *mut u8 {
-      $($path_to_types)*::_export_method_font_kit_exact_match_cabi::<<$ty as $($path_to_types)*::Guest>::FontKit>(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
+    unsafe extern "C" fn export_method_font_kit_exact_match(arg0: *mut u8,arg1: i32,arg2: i32,arg3: i32,arg4: i32,arg5: i32,arg6: i32,arg7: *mut u8,arg8: usize,arg9: *mut u8,arg10: usize,) -> *mut u8 {
+      $($path_to_types)*::_export_method_font_kit_exact_match_cabi::<<$ty as $($path_to_types)*::Guest>::FontKit>(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10)
     }
     #[export_name = "alibaba:fontkit/fontkit-interface#[method]font-kit.font-keys"]
     unsafe extern "C" fn export_method_font_kit_font_keys(arg0: *mut u8,) -> *mut u8 {
@@ -2693,12 +2867,12 @@ pub mod exports {
       $($path_to_types)*::_export_method_font_kit_len_cabi::<<$ty as $($path_to_types)*::Guest>::FontKit>(arg0)
     }
     #[export_name = "alibaba:fontkit/fontkit-interface#[method]font-kit.remove"]
-    unsafe extern "C" fn export_method_font_kit_remove(arg0: *mut u8,arg1: i32,arg2: i32,arg3: i32,arg4: i32,arg5: i32,arg6: i32,arg7: *mut u8,arg8: usize,) {
-      $($path_to_types)*::_export_method_font_kit_remove_cabi::<<$ty as $($path_to_types)*::Guest>::FontKit>(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
+    unsafe extern "C" fn export_method_font_kit_remove(arg0: *mut u8,arg1: i32,arg2: i32,arg3: i32,arg4: i32,arg5: i32,arg6: i32,arg7: *mut u8,arg8: usize,arg9: *mut u8,arg10: usize,) {
+      $($path_to_types)*::_export_method_font_kit_remove_cabi::<<$ty as $($path_to_types)*::Guest>::FontKit>(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10)
     }
     #[export_name = "alibaba:fontkit/fontkit-interface#[method]font-kit.measure"]
-    unsafe extern "C" fn export_method_font_kit_measure(arg0: *mut u8,arg1: i32,arg2: i32,arg3: i32,arg4: i32,arg5: i32,arg6: i32,arg7: *mut u8,arg8: usize,arg9: *mut u8,arg10: usize,) -> *mut u8 {
-      $($path_to_types)*::_export_method_font_kit_measure_cabi::<<$ty as $($path_to_types)*::Guest>::FontKit>(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10)
+    unsafe extern "C" fn export_method_font_kit_measure(arg0: *mut u8,arg1: i32,arg2: i32,arg3: i32,arg4: i32,arg5: i32,arg6: i32,arg7: *mut u8,arg8: usize,arg9: *mut u8,arg10: usize,arg11: *mut u8,arg12: usize,) -> *mut u8 {
+      $($path_to_types)*::_export_method_font_kit_measure_cabi::<<$ty as $($path_to_types)*::Guest>::FontKit>(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12)
     }
     #[export_name = "alibaba:fontkit/fontkit-interface#str-width-to-number"]
     unsafe extern "C" fn export_str_width_to_number(arg0: *mut u8,arg1: usize,) -> i32 {
@@ -2765,8 +2939,8 @@ pub mod exports {
                 #[doc(hidden)]
                 pub(crate) use __export_alibaba_fontkit_fontkit_interface_cabi;
                 #[repr(align(4))]
-                struct _RetArea([::core::mem::MaybeUninit<u8>; 20]);
-                static mut _RET_AREA: _RetArea = _RetArea([::core::mem::MaybeUninit::uninit(); 20]);
+                struct _RetArea([::core::mem::MaybeUninit<u8>; 28]);
+                static mut _RET_AREA: _RetArea = _RetArea([::core::mem::MaybeUninit::uninit(); 28]);
             }
         }
     }
@@ -3040,60 +3214,59 @@ pub(crate) use __export_fontkit_impl as export;
 #[cfg(target_arch = "wasm32")]
 #[link_section = "component-type:wit-bindgen:0.25.0:fontkit:encoded world"]
 #[doc(hidden)]
-pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 2773] = *b"\
-\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xd7\x14\x01A\x02\x01\
-A\x05\x01B\x04\x01k{\x01k\x7f\x01r\x04\x06weight\0\x06italic\x01\x07stretch\0\x06\
-familys\x04\0\x08font-key\x03\0\x02\x03\x01\x17alibaba:fontkit/commons\x05\0\x02\
-\x03\0\0\x08font-key\x01B\x7f\x02\x03\x02\x01\x01\x04\0\x08font-key\x03\0\0\x01r\
-\x03\x02id{\x04names\x0blanguage-id{\x04\0\x04name\x03\0\x02\x01p\x03\x01ks\x01r\
-\x04\x0bstyle-names\x04\x05names\x04\x04path\x05\x03key\x01\x04\0\x09font-info\x03\
-\0\x06\x01r\x02\x08position|\x09thickness|\x04\0\x0cline-metrics\x03\0\x08\x04\0\
-\x0ctext-metrics\x03\x01\x04\0\x0cglyph-bitmap\x03\x01\x04\0\x04font\x03\x01\x04\
-\0\x08font-kit\x03\x01\x01i\x0a\x01@\x01\x05values\0\x0e\x04\0\x19[constructor]t\
-ext-metrics\x01\x0f\x01h\x0a\x01@\x01\x04self\x10\0\x0e\x04\0\x1e[method]text-me\
-trics.duplicate\x01\x11\x01@\x03\x04self\x10\x09font-sizev\x0eletter-spacingv\0v\
-\x04\0\x1a[method]text-metrics.width\x01\x12\x01kv\x01@\x03\x04self\x10\x09font-\
-sizev\x0bline-height\x13\0v\x04\0\x1b[method]text-metrics.height\x01\x14\x01@\x02\
-\x04self\x10\x09font-sizev\0v\x04\0\x1d[method]text-metrics.ascender\x01\x15\x01\
-@\x01\x04self\x10\0v\x04\0\x1d[method]text-metrics.line-gap\x01\x16\x04\0\x1a[me\
-thod]text-metrics.units\x01\x16\x01@\x03\x04self\x10\x05starty\x05county\0\x0e\x04\
-\0\x1a[method]text-metrics.slice\x01\x17\x01@\x01\x04self\x10\0s\x04\0\x1a[metho\
-d]text-metrics.value\x01\x18\x01@\x01\x04self\x10\0\x7f\x04\0\x1b[method]text-me\
-trics.is-rtl\x01\x19\x01@\x02\x04self\x10\x05other\x0e\x01\0\x04\0\x1b[method]te\
-xt-metrics.append\x01\x1a\x01@\x01\x04self\x10\0y\x04\0\x1a[method]text-metrics.\
-count\x01\x1b\x01@\x03\x04self\x10\x05other\x0e\x08fallback\x7f\x01\0\x04\0\x1c[\
-method]text-metrics.replace\x01\x1c\x01@\x04\x04self\x10\x09font-sizev\x0eletter\
--spacingv\x05widthv\0\x0e\x04\0#[method]text-metrics.split-by-width\x01\x1d\x01p\
-t\x01@\x01\x04self\x10\0\x1e\x04\0\x1a[method]text-metrics.chars\x01\x1f\x01h\x0b\
-\x01@\x01\x04self\x20\0y\x04\0\x1a[method]glyph-bitmap.width\x01!\x04\0\x1b[meth\
-od]glyph-bitmap.height\x01!\x01p}\x01@\x01\x04self\x20\0\"\x04\0\x1b[method]glyp\
-h-bitmap.bitmap\x01#\x01@\x01\x04self\x20\0v\x04\0\x1a[method]glyph-bitmap.x-min\
-\x01$\x04\0\x1a[method]glyph-bitmap.y-max\x01$\x04\0\x1d[method]glyph-bitmap.str\
-oke-x\x01$\x04\0\x1d[method]glyph-bitmap.stroke-y\x01$\x01o\x02\"y\x01k%\x01@\x01\
-\x04self\x20\0&\x04\0\"[method]glyph-bitmap.stroke-bitmap\x01'\x04\0\x1f[method]\
-glyph-bitmap.advanced-x\x01$\x04\0\x1d[method]glyph-bitmap.ascender\x01$\x04\0\x1e\
-[method]glyph-bitmap.descender\x01$\x01h\x0c\x01@\x02\x04self(\x01ct\0\x7f\x04\0\
-\x16[method]font.has-glyph\x01)\x01@\x02\x04self(\x01ct\0\x05\x04\0\x1e[method]f\
-ont.glyph-path-string\x01*\x01@\x01\x04self(\0\"\x04\0\x13[method]font.buffer\x01\
-+\x01@\x01\x04self(\0s\x04\0\x11[method]font.path\x01,\x01@\x01\x04self(\0\x01\x04\
-\0\x10[method]font.key\x01-\x01j\x01\x0e\x01s\x01@\x02\x04self(\x04texts\0.\x04\0\
-\x14[method]font.measure\x01/\x01@\x01\x04self(\0|\x04\0\x15[method]font.ascende\
-r\x010\x04\0\x16[method]font.descender\x010\x01@\x01\x04self(\0{\x04\0\x19[metho\
-d]font.units-per-em\x011\x01i\x0b\x01k2\x01@\x04\x04self(\x01ct\x09font-sizev\x0c\
-stroke-widthv\03\x04\0\x13[method]font.bitmap\x014\x01k\x09\x01@\x01\x04self(\05\
-\x04\0\x1e[method]font.underline-metrics\x016\x01o\x02sv\x01p7\x01k8\x01@\x01\x04\
-self(\09\x04\0\x16[method]font.variation\x01:\x01i\x0d\x01@\0\0;\x04\0\x15[const\
-ructor]font-kit\x01<\x01h\x0d\x01p\x01\x01@\x02\x04self=\x06buffer\"\0>\x04\0%[m\
-ethod]font-kit.add-font-from-buffer\x01?\x01@\x02\x04self=\x04paths\x01\0\x04\0\x20\
-[method]font-kit.add-search-path\x01@\x01i\x0c\x01k\xc1\0\x01@\x02\x04self=\x03k\
-ey\x01\0\xc2\0\x04\0\x16[method]font-kit.query\x01C\x04\0\x1c[method]font-kit.ex\
-act-match\x01C\x01@\x01\x04self=\0>\x04\0\x1a[method]font-kit.font-keys\x01D\x01\
-p\x07\x01@\x01\x04self=\0\xc5\0\x04\0\x1b[method]font-kit.fonts-info\x01F\x01@\x01\
-\x04self=\0y\x04\0\x14[method]font-kit.len\x01G\x01@\x02\x04self=\x03key\x01\x01\
-\0\x04\0\x17[method]font-kit.remove\x01H\x01k\x0e\x01@\x03\x04self=\x03key\x01\x04\
-texts\0\xc9\0\x04\0\x18[method]font-kit.measure\x01J\x01@\x01\x05widths\0{\x04\0\
-\x13str-width-to-number\x01K\x01@\x01\x05width{\0s\x04\0\x13number-width-to-str\x01\
-L\x04\x01!alibaba:fontkit/fontkit-interface\x05\x02\x04\x01\x17alibaba:fontkit/f\
+pub static __WIT_BINDGEN_COMPONENT_TYPE: [u8; 2742] = *b"\
+\0asm\x0d\0\x01\0\0\x19\x16wit-component-encoding\x04\0\x07\xb8\x14\x01A\x02\x01\
+A\x05\x01B\x06\x01k{\x01k\x7f\x01o\x02sv\x01p\x02\x01r\x05\x06weight\0\x06italic\
+\x01\x07stretch\0\x06familys\x0avariations\x03\x04\0\x08font-key\x03\0\x04\x03\x01\
+\x17alibaba:fontkit/commons\x05\0\x02\x03\0\0\x08font-key\x01Bz\x02\x03\x02\x01\x01\
+\x04\0\x08font-key\x03\0\0\x01r\x03\x02id{\x04names\x0blanguage-id{\x04\0\x04nam\
+e\x03\0\x02\x01p\x03\x01ks\x01r\x04\x0bstyle-names\x04\x05names\x04\x04path\x05\x03\
+key\x01\x04\0\x09font-info\x03\0\x06\x01r\x02\x08position|\x09thickness|\x04\0\x0c\
+line-metrics\x03\0\x08\x04\0\x0ctext-metrics\x03\x01\x04\0\x0cglyph-bitmap\x03\x01\
+\x04\0\x04font\x03\x01\x04\0\x08font-kit\x03\x01\x01i\x0a\x01@\x01\x05values\0\x0e\
+\x04\0\x19[constructor]text-metrics\x01\x0f\x01h\x0a\x01@\x01\x04self\x10\0\x0e\x04\
+\0\x1e[method]text-metrics.duplicate\x01\x11\x01@\x03\x04self\x10\x09font-sizev\x0e\
+letter-spacingv\0v\x04\0\x1a[method]text-metrics.width\x01\x12\x01kv\x01@\x03\x04\
+self\x10\x09font-sizev\x0bline-height\x13\0v\x04\0\x1b[method]text-metrics.heigh\
+t\x01\x14\x01@\x02\x04self\x10\x09font-sizev\0v\x04\0\x1d[method]text-metrics.as\
+cender\x01\x15\x01@\x01\x04self\x10\0v\x04\0\x1d[method]text-metrics.line-gap\x01\
+\x16\x04\0\x1a[method]text-metrics.units\x01\x16\x01@\x03\x04self\x10\x05starty\x05\
+county\0\x0e\x04\0\x1a[method]text-metrics.slice\x01\x17\x01@\x01\x04self\x10\0s\
+\x04\0\x1a[method]text-metrics.value\x01\x18\x01@\x01\x04self\x10\0\x7f\x04\0\x1b\
+[method]text-metrics.is-rtl\x01\x19\x01@\x02\x04self\x10\x05other\x0e\x01\0\x04\0\
+\x1b[method]text-metrics.append\x01\x1a\x01@\x01\x04self\x10\0y\x04\0\x1a[method\
+]text-metrics.count\x01\x1b\x01@\x03\x04self\x10\x05other\x0e\x08fallback\x7f\x01\
+\0\x04\0\x1c[method]text-metrics.replace\x01\x1c\x01@\x04\x04self\x10\x09font-si\
+zev\x0eletter-spacingv\x05widthv\0\x0e\x04\0#[method]text-metrics.split-by-width\
+\x01\x1d\x01pt\x01@\x01\x04self\x10\0\x1e\x04\0\x1a[method]text-metrics.chars\x01\
+\x1f\x01h\x0b\x01@\x01\x04self\x20\0y\x04\0\x1a[method]glyph-bitmap.width\x01!\x04\
+\0\x1b[method]glyph-bitmap.height\x01!\x01p}\x01@\x01\x04self\x20\0\"\x04\0\x1b[\
+method]glyph-bitmap.bitmap\x01#\x01@\x01\x04self\x20\0v\x04\0\x1a[method]glyph-b\
+itmap.x-min\x01$\x04\0\x1a[method]glyph-bitmap.y-max\x01$\x04\0\x1d[method]glyph\
+-bitmap.stroke-x\x01$\x04\0\x1d[method]glyph-bitmap.stroke-y\x01$\x01o\x02\"y\x01\
+k%\x01@\x01\x04self\x20\0&\x04\0\"[method]glyph-bitmap.stroke-bitmap\x01'\x04\0\x1f\
+[method]glyph-bitmap.advanced-x\x01$\x04\0\x1d[method]glyph-bitmap.ascender\x01$\
+\x04\0\x1e[method]glyph-bitmap.descender\x01$\x01h\x0c\x01@\x02\x04self(\x01ct\0\
+\x7f\x04\0\x16[method]font.has-glyph\x01)\x01@\x02\x04self(\x01ct\0\x05\x04\0\x1e\
+[method]font.glyph-path-string\x01*\x01@\x01\x04self(\0\"\x04\0\x13[method]font.\
+buffer\x01+\x01@\x01\x04self(\0s\x04\0\x11[method]font.path\x01,\x01@\x01\x04sel\
+f(\0\x01\x04\0\x10[method]font.key\x01-\x01j\x01\x0e\x01s\x01@\x02\x04self(\x04t\
+exts\0.\x04\0\x14[method]font.measure\x01/\x01@\x01\x04self(\0|\x04\0\x15[method\
+]font.ascender\x010\x04\0\x16[method]font.descender\x010\x01@\x01\x04self(\0{\x04\
+\0\x19[method]font.units-per-em\x011\x01i\x0b\x01k2\x01@\x04\x04self(\x01ct\x09f\
+ont-sizev\x0cstroke-widthv\03\x04\0\x13[method]font.bitmap\x014\x01k\x09\x01@\x01\
+\x04self(\05\x04\0\x1e[method]font.underline-metrics\x016\x01i\x0d\x01@\0\07\x04\
+\0\x15[constructor]font-kit\x018\x01h\x0d\x01p\x01\x01@\x02\x04self9\x06buffer\"\
+\0:\x04\0%[method]font-kit.add-font-from-buffer\x01;\x01@\x02\x04self9\x04paths\x01\
+\0\x04\0\x20[method]font-kit.add-search-path\x01<\x01i\x0c\x01k=\x01@\x02\x04sel\
+f9\x03key\x01\0>\x04\0\x16[method]font-kit.query\x01?\x04\0\x1c[method]font-kit.\
+exact-match\x01?\x01@\x01\x04self9\0:\x04\0\x1a[method]font-kit.font-keys\x01@\x01\
+p\x07\x01@\x01\x04self9\0\xc1\0\x04\0\x1b[method]font-kit.fonts-info\x01B\x01@\x01\
+\x04self9\0y\x04\0\x14[method]font-kit.len\x01C\x01@\x02\x04self9\x03key\x01\x01\
+\0\x04\0\x17[method]font-kit.remove\x01D\x01k\x0e\x01@\x03\x04self9\x03key\x01\x04\
+texts\0\xc5\0\x04\0\x18[method]font-kit.measure\x01F\x01@\x01\x05widths\0{\x04\0\
+\x13str-width-to-number\x01G\x01@\x01\x05width{\0s\x04\0\x13number-width-to-str\x01\
+H\x04\x01!alibaba:fontkit/fontkit-interface\x05\x02\x04\x01\x17alibaba:fontkit/f\
 ontkit\x04\0\x0b\x0d\x01\0\x07fontkit\x03\0\0\0G\x09producers\x01\x0cprocessed-b\
 y\x02\x0dwit-component\x070.208.1\x10wit-bindgen-rust\x060.25.0";
 

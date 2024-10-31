@@ -163,6 +163,8 @@ impl FontKit {
             filters.push(Filter::Stretch(stretch));
         }
 
+        filters.push(Filter::Variations(&key.variations));
+
         // Fallback weight logic
         filters.push(Filter::Weight(0));
         let mut search_results = self
@@ -184,6 +186,10 @@ impl FontKit {
                 Filter::Italic(i) => s.retain(|key| key.italic == Some(i)),
                 Filter::Weight(w) => s.retain(|key| w == 0 || key.weight == Some(w)),
                 Filter::Stretch(st) => s.retain(|key| key.stretch == Some(st)),
+                Filter::Variations(v) => s.retain(|key| {
+                    v.iter()
+                        .all(|(s, v)| key.variations.iter().any(|(ss, sv)| ss == s && v == sv))
+                }),
             };
             match s.len() {
                 1 => return self.fonts.get(s.iter().next()?),
@@ -252,4 +258,5 @@ enum Filter<'a> {
     Italic(bool),
     Weight(u16),
     Stretch(u16),
+    Variations(&'a Vec<(String, f32)>),
 }

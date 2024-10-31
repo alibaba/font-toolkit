@@ -26,8 +26,8 @@ byteorder = { version = "1.4.3", optional = true }
 dashmap = "5.3.4"
 flate2 = { version = "1.0.22", optional = true }
 log = "0.4.17"
-ordered-float = { version = "3.9.1", optional = true }
-ouroboros = "0.17.0"
+ordered-float = "3.9.1"
+ouroboros = "0.18.4"
 pathfinder_content = { version = "0.5.0", optional = true, default-features = false }
 pathfinder_geometry = { version = "0.5.1", optional = true }
 pathfinder_simd = { version = "0.5.2", optional = true, features = [
@@ -39,7 +39,7 @@ textwrap = { version = "0.16.1", optional = true, default-features = false, feat
 ] }
 thiserror = "1.0.30"
 tiny-skia-path = "0.11.1"
-ttf-parser = "0.21.1"
+ttf-parser = "0.25.0"
 unicode-bidi = { version = "0.3.7", optional = true }
 unicode-normalization = { version = "0.1.19", optional = true }
 unicode-script = { version = "0.5.4", optional = true }
@@ -59,7 +59,7 @@ fast_image_resize = { version = "3.0.4", optional = true, features = [
 
 [features]
 default = ["parse", "metrics", "ras", "wit"]
-parse = ["byteorder", "flate2", "woff2-patched", "ordered-float"]
+parse = ["byteorder", "flate2", "woff2-patched"]
 metrics = [
     "unicode-bidi",
     "unicode-normalization",

@@ -62,15 +62,6 @@ impl fi::GuestFont for Font {
         })
     }
 
-    fn variation(&self) -> Option<Vec<(String, f32)>> {
-        let result = self.variants();
-        if result.is_empty() {
-            None
-        } else {
-            Some(result)
-        }
-    }
-
     fn glyph_path_string(&self, c: char) -> Option<String> {
         use pathfinder_geometry::transform2d::Transform2F;
         use pathfinder_geometry::vector::Vector2F;

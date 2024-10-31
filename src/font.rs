@@ -1,12 +1,12 @@
 use arc_swap::ArcSwap;
 #[cfg(feature = "parse")]
 use byteorder::{BigEndian, ReadBytesExt};
-#[cfg(feature = "parse")]
 use ordered_float::OrderedFloat;
 use ouroboros::self_referencing;
 #[cfg(feature = "parse")]
 use std::collections::HashMap;
 use std::fmt;
+use std::hash::Hash;
 #[cfg(feature = "parse")]
 use std::io::Read;
 use std::path::PathBuf;
@@ -48,7 +48,7 @@ pub fn number_width_to_str(width: u16) -> String {
     .to_string()
 }
 
-#[derive(Clone, Hash, PartialEq, PartialOrd, Eq, Debug, Default)]
+#[derive(Clone, PartialEq, PartialOrd, Debug, Default)]
 pub struct FontKey {
     /// Font weight, same as CSS [font-weight](https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight#common_weight_name_mapping)
     pub weight: Option<u16>,
@@ -58,6 +58,23 @@ pub struct FontKey {
     pub stretch: Option<u16>,
     /// Font family string
     pub family: String,
+    pub variations: Vec<(String, f32)>,
+}
+
+impl Eq for FontKey {}
+
+impl Hash for FontKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.weight.hash(state);
+        self.italic.hash(state);
+        self.stretch.hash(state);
+        self.family.hash(state);
+        self.variations
+            .iter()
+            .map(|(s, v)| (s, OrderedFloat(*v)))
+            .collect::<Vec<_>>()
+            .hash(state);
+    }
 }
 
 impl FontKey {
@@ -67,6 +84,7 @@ impl FontKey {
             italic: Some(false),
             stretch: Some(5),
             family,
+            variations: vec![],
         }
     }
 }
@@ -153,7 +171,7 @@ impl Font {
         self.key.clone()
     }
 
-    pub fn variants(&self) -> Vec<(String, f32)> {
+    pub fn variantions(&self) -> Vec<(String, f32)> {
         match &self.variant {
             Variant::Instance { coords, axes, .. } => axes
                 .iter()
@@ -407,6 +425,7 @@ impl Font {
             italic: Some(face.borrow_face().is_italic()),
             stretch: Some(face.borrow_face().width().to_number()),
             family: ascii_name.unwrap_or_else(|| names[0].name.clone()),
+            variations: vec![],
         };
         if let Variant::Instance {
             coords,
@@ -432,6 +451,10 @@ impl Font {
                     face.set_variation(axis.tag, coord.0);
                 }
             });
+            for (coord, axis) in coords.iter().zip(axes.iter()) {
+                key.variations
+                    .push((String::from_utf8(axis.tag.to_bytes().to_vec())?, coord.0));
+            }
         }
         let font = Font {
             names,
