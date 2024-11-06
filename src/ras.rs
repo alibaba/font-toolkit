@@ -12,14 +12,11 @@ use ttf_parser::{OutlineBuilder, Rect};
 use crate::metrics::CharMetrics;
 use crate::*;
 
-impl Font {
+impl StaticFace {
     /// Output the outline instructions of a glyph
     pub fn outline(&self, c: char) -> Option<(Glyph, Outline)> {
-        self.load().ok()?;
         let mut builder = PathBuilder::new();
-        let f = self.face.load();
-        let f = f.as_ref().as_ref().unwrap();
-        let f = f.borrow_face();
+        let f = self.borrow_face();
         let CharMetrics {
             glyph_id,
             bbox,
@@ -44,11 +41,7 @@ impl Font {
         if !self.has_glyph(c) {
             return None;
         }
-        self.load().ok()?;
-
-        let f = self.face.load();
-        let f = f.as_ref().as_ref().unwrap();
-        let f = f.borrow_face();
+        let f = self.borrow_face();
         let a = f.ascender();
         let d = f.descender();
         let units = f.units_per_em() as f32;

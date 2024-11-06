@@ -1,4 +1,3 @@
-use dashmap::mapref::one::Ref;
 use std::collections::HashSet;
 #[cfg(feature = "parse")]
 use std::path::Path;
@@ -113,86 +112,50 @@ impl FontKit {
     /// If the given buffer is a font collection (ttc), multiple keys will be
     /// returned.
     #[cfg(feature = "parse")]
-    pub fn add_font_from_buffer(&self, buffer: Vec<u8>) -> Result<Vec<font::FontKey>, Error> {
-        Ok(Font::from_buffer(&buffer)?
-            .into_iter()
-            .map(|font| {
-                let key = font.key().clone();
-                self.fonts.insert(key.clone(), font);
-                key
-            })
-            .collect::<Vec<_>>())
-    }
-
-    pub fn font_keys(&self) -> impl Iterator<Item = font::FontKey> + '_ {
-        return self.fonts.iter().map(|i| {
-            log::debug!("{:?}", i.names);
-            i.key().clone()
-        });
+    pub fn add_font_from_buffer(&self, buffer: Vec<u8>) -> Result<(), Error> {
+        let font = Font::from_buffer(buffer)?;
+        let key = font.first_key();
+        self.fonts.insert(key, font);
+        Ok(())
     }
 
     /// Recursively scan a local path for fonts, this method will not store the
     /// font buffer to reduce memory consumption
     #[cfg(feature = "parse")]
     pub fn search_fonts_from_path(&self, path: impl AsRef<Path>) -> Result<(), Error> {
-        if let Some(fonts) = load_font_from_path(&path) {
-            for font in fonts {
-                self.fonts.insert(font.key(), font);
-            }
+        if let Some(font) = load_font_from_path(&path) {
+            self.fonts.insert(font.first_key(), font);
         }
-        // }
         Ok(())
     }
 
-    pub fn exact_match(&self, key: &font::FontKey) -> Option<Ref<'_, FontKey, Font>> {
-        return self.fonts.get(key);
+    pub fn exact_match(&self, key: &font::FontKey) -> Option<StaticFace> {
+        return self.fonts.get(key)?.face(key).ok();
     }
 
-    pub fn query(&self, key: &font::FontKey) -> Option<Ref<'_, FontKey, Font>> {
+    pub fn query(&self, key: &font::FontKey) -> Option<StaticFace> {
         if let Some(result) = self.exact_match(key) {
             return Some(result as _);
         }
-        let mut filters = vec![Filter::Family(&key.family)];
-        if let Some(italic) = key.italic {
-            filters.push(Filter::Italic(italic));
-        }
-        if let Some(weight) = key.weight {
-            filters.push(Filter::Weight(weight));
-        }
-        if let Some(stretch) = key.stretch {
-            filters.push(Filter::Stretch(stretch));
-        }
-
-        filters.push(Filter::Variations(&key.variations));
-
-        // Fallback weight logic
-        filters.push(Filter::Weight(0));
         let mut search_results = self
             .fonts
             .iter()
             .map(|item| item.key().clone())
             .collect::<HashSet<_>>();
+        let filters = Filter::from_key(key);
         for filter in filters {
             let mut s = search_results.clone();
-            let mut is_family = false;
-            match filter {
-                Filter::Family(f) => {
-                    is_family = true;
-                    s.retain(|key| {
-                        let font = self.fonts.get(key).unwrap();
-                        font.has_name(f)
-                    })
-                }
-                Filter::Italic(i) => s.retain(|key| key.italic == Some(i)),
-                Filter::Weight(w) => s.retain(|key| w == 0 || key.weight == Some(w)),
-                Filter::Stretch(st) => s.retain(|key| key.stretch == Some(st)),
-                Filter::Variations(v) => s.retain(|key| {
-                    v.iter()
-                        .all(|(s, v)| key.variations.iter().any(|(ss, sv)| ss == s && v == sv))
-                }),
+            let is_family = if let Filter::Family(_) = filter {
+                true
+            } else {
+                false
             };
+            s.retain(|key| {
+                let font = self.fonts.get(key).unwrap();
+                font.fulfils(&filter)
+            });
             match s.len() {
-                1 => return self.fonts.get(s.iter().next()?),
+                1 => return self.fonts.get(s.iter().next()?)?.face(key).ok(),
                 0 if is_family => return None,
                 0 => {}
                 _ => search_results = s,
@@ -203,7 +166,7 @@ impl FontKit {
 }
 
 #[cfg(feature = "parse")]
-fn load_font_from_path(path: impl AsRef<std::path::Path>) -> Option<Vec<Font>> {
+fn load_font_from_path(path: impl AsRef<std::path::Path>) -> Option<Font> {
     use std::io::Read;
 
     // if path.as_ref().is_dir() {
@@ -235,19 +198,17 @@ fn load_font_from_path(path: impl AsRef<std::path::Path>) -> Option<Vec<Font>> {
             let mut file = std::fs::File::open(&path).unwrap();
             buffer.clear();
             file.read_to_end(&mut buffer).unwrap();
-            let mut fonts = match Font::from_buffer(&buffer) {
+            let mut font = match Font::from_buffer(buffer) {
                 Ok(f) => f,
                 Err(e) => {
                     log::warn!("Failed loading font {:?}: {:?}", path, e);
                     return None;
                 }
             };
-            for font in &mut fonts {
-                font.path = Some(path.to_path_buf());
-                // println!("{:?}", font.names);
-                font.unload();
-            }
-            Some(fonts)
+            font.set_path(path.to_path_buf());
+            // println!("{:?}", font.names);
+            font.unload();
+            Some(font)
         }
         _ => None,
     }
@@ -259,4 +220,25 @@ enum Filter<'a> {
     Weight(u16),
     Stretch(u16),
     Variations(&'a Vec<(String, f32)>),
+}
+
+impl<'a> Filter<'a> {
+    pub fn from_key(key: &'a FontKey) -> Vec<Filter<'a>> {
+        let mut filters = vec![Filter::Family(&key.family)];
+        if let Some(italic) = key.italic {
+            filters.push(Filter::Italic(italic));
+        }
+        if let Some(weight) = key.weight {
+            filters.push(Filter::Weight(weight));
+        }
+        if let Some(stretch) = key.stretch {
+            filters.push(Filter::Stretch(stretch));
+        }
+
+        filters.push(Filter::Variations(&key.variations));
+
+        // Fallback weight logic
+        filters.push(Filter::Weight(0));
+        filters
+    }
 }

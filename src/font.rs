@@ -12,9 +12,9 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::sync::Arc;
 pub use ttf_parser::LineMetrics;
-use ttf_parser::{Face, Fixed, VariationAxis, Width as ParserWidth};
+use ttf_parser::{Face, Fixed, Tag, VariationAxis, Width as ParserWidth};
 
-use crate::Error;
+use crate::{Error, Filter};
 
 pub fn str_width_to_number(width: &str) -> u16 {
     match width {
@@ -154,107 +154,21 @@ pub fn is_otf(buf: &[u8]) -> bool {
         && buf[4] == 0x00
 }
 
-#[derive(Clone)]
-pub struct Font {
-    key: FontKey,
-    /// [Font variation](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar) data
-    variant: Variant,
-    pub(super) names: Vec<Name>,
-    #[allow(unused)]
-    pub(super) style_names: Vec<Name>,
-    pub(super) face: Arc<ArcSwap<Option<StaticFace>>>,
-    pub(super) path: Option<PathBuf>,
+pub(crate) struct VariationData {
+    pub key: FontKey,
+    pub names: Vec<Name>,
+    pub variation_names: Vec<FvarInstance>,
+    pub style_names: Vec<Name>,
+    pub index: u32,
 }
 
-impl Font {
-    pub fn key(&self) -> FontKey {
-        self.key.clone()
-    }
-
-    pub fn variantions(&self) -> Vec<(String, f32)> {
-        match &self.variant {
-            Variant::Instance { coords, axes, .. } => axes
-                .iter()
-                .map(|a| format!("{}", a.tag))
-                .zip(coords.iter().map(|c| c.0))
-                .collect(),
-            _ => vec![],
-        }
-    }
-
-    pub(super) fn has_name(&self, name: &str) -> bool {
-        if self.key.family == name {
-            return true;
-        }
-        if self.names.iter().any(|n| n.name == name) {
-            return true;
-        }
-        if let Variant::Instance { names, .. } = &self.variant {
-            use inflections::Inflect;
-            return names.iter().any(|n| {
-                n.postscript.name == name
-                    || n.postscript
-                        .name
-                        .replace(&n.sub_family.name, &n.sub_family.name.to_pascal_case())
-                        == name
-            });
-        }
-        false
-    }
-
+impl VariationData {
     #[cfg(feature = "parse")]
-    pub(super) fn from_buffer(buffer: &[u8]) -> Result<Vec<Self>, Error> {
-        let mut variants = vec![Variant::Index(0)];
-        let result = if is_ttf(&buffer) {
-            buffer.to_vec()
-        } else if is_otf(&buffer) {
-            variants = (0..ttf_parser::fonts_in_collection(&buffer).unwrap_or(1))
-                .map(|i| Variant::Index(i))
-                .collect();
-            buffer.to_vec()
-        } else {
-            buffer.to_vec()
-        };
-        Ok(variants
-            .into_iter()
-            .map(|v| Font::from_buffer_with_variant(result.clone(), v))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .collect())
-    }
-
-    #[cfg(feature = "parse")]
-    fn from_buffer_with_variant(mut buffer: Vec<u8>, variant: Variant) -> Result<Vec<Self>, Error> {
-        #[cfg(feature = "woff2-patched")]
-        if is_woff2(&buffer) {
-            buffer = woff2_patched::convert_woff2_to_ttf(&mut buffer.as_slice())?;
-        }
-        #[cfg(feature = "parse")]
-        if is_woff(&buffer) {
-            use std::io::Cursor;
-
-            let reader = Cursor::new(buffer);
-            let mut otf_buf = Cursor::new(Vec::new());
-            crate::conv::woff::convert_woff_to_otf(reader, &mut otf_buf)?;
-            buffer = otf_buf.into_inner();
-        }
-        if buffer.is_empty() {
-            return Err(Error::UnsupportedMIME("unknown"));
-        }
-
+    fn parse_buffer_with_index(buffer: &[u8], index: u32) -> Result<Vec<VariationData>, Error> {
         use ttf_parser::name_id;
-        let index = match variant {
-            Variant::Index(i) => i,
-            _ => 0,
-        };
-        let mut face = StaticFaceTryBuilder {
-            buffer: buffer.clone(),
-            face_builder: |buf| Face::parse(buf, index),
-        }
-        .try_build()?;
+
+        let face = Face::parse(buffer, index)?;
         let axes: Vec<VariationAxis> = face
-            .borrow_face()
             .tables()
             .fvar
             .map(|v| v.axes.into_iter())
@@ -262,106 +176,89 @@ impl Font {
             .flatten()
             .collect::<Vec<_>>();
 
-        if let Variant::Index(_) = variant {
-            // get fvar if any
-            let mut instances: HashMap<Vec<OrderedFloat<f32>>, Vec<FvarInstance>> = HashMap::new();
-            if let (Some(_), Some(name_table)) = (
-                face.borrow_face().tables().fvar,
-                face.borrow_face().tables().name,
-            ) {
-                // currently ttf-parser is missing `fvar`'s instance records, we parse them
-                // directly from `RawFace`
-                let data: &[u8] = face
-                    .borrow_face()
-                    .raw_face()
-                    .table(ttf_parser::Tag::from_bytes(b"fvar"))
-                    .unwrap();
-                let mut raw = &*data;
-                let _version = raw.read_u32::<BigEndian>()?;
-                let axis_offset = raw.read_u16::<BigEndian>()?;
-                let _ = raw.read_u16::<BigEndian>()?;
-                let axis_count = raw.read_u16::<BigEndian>()?;
-                let axis_size = raw.read_u16::<BigEndian>()?;
-                let instance_count = raw.read_u16::<BigEndian>()?;
-                let instance_size = raw.read_u16::<BigEndian>()?;
+        // get fvar if any
+        let mut instances: HashMap<Vec<OrderedFloat<f32>>, Vec<FvarInstance>> = HashMap::new();
+        if let (Some(_), Some(name_table)) = (face.tables().fvar, face.tables().name) {
+            // currently ttf-parser is missing `fvar`'s instance records, we parse them
+            // directly from `RawFace`
+            let data: &[u8] = face
+                .raw_face()
+                .table(ttf_parser::Tag::from_bytes(b"fvar"))
+                .unwrap();
+            let mut raw = &*data;
+            let _version = raw.read_u32::<BigEndian>()?;
+            let axis_offset = raw.read_u16::<BigEndian>()?;
+            let _ = raw.read_u16::<BigEndian>()?;
+            let axis_count = raw.read_u16::<BigEndian>()?;
+            let axis_size = raw.read_u16::<BigEndian>()?;
+            let instance_count = raw.read_u16::<BigEndian>()?;
+            let instance_size = raw.read_u16::<BigEndian>()?;
 
-                let data =
-                    &data[(axis_offset as usize + (axis_count as usize * axis_size as usize))..];
-                for i in 0..instance_count {
-                    let mut raw = &data[(i as usize * instance_size as usize)..];
-                    let sub_family_name_id = raw.read_u16::<BigEndian>()?;
-                    let _ = raw.read_u16::<BigEndian>()?;
-                    let coords = (0..axis_count)
-                        .map(|_| {
-                            use ttf_parser::FromData;
-                            let mut v = [0_u8; 4];
-                            raw.read_exact(&mut v)
-                                .map(|_| OrderedFloat(Fixed::parse(&v).unwrap().0))
+            let data = &data[(axis_offset as usize + (axis_count as usize * axis_size as usize))..];
+            for i in 0..instance_count {
+                let mut raw = &data[(i as usize * instance_size as usize)..];
+                let sub_family_name_id = raw.read_u16::<BigEndian>()?;
+                let _ = raw.read_u16::<BigEndian>()?;
+                let coords = (0..axis_count)
+                    .map(|_| {
+                        use ttf_parser::FromData;
+                        let mut v = [0_u8; 4];
+                        raw.read_exact(&mut v)
+                            .map(|_| OrderedFloat(Fixed::parse(&v).unwrap().0))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let postscript_name_id = if raw.is_empty() {
+                    None
+                } else {
+                    Some(raw.read_u16::<BigEndian>()?)
+                };
+                let sub_family = name_table
+                    .names
+                    .into_iter()
+                    .find(|name| name.name_id == sub_family_name_id)
+                    .and_then(|name| {
+                        Some(Name {
+                            id: name.name_id,
+                            name: name.to_string().or_else(|| {
+                                // try to force unicode encoding
+                                Some(std::str::from_utf8(name.name).ok()?.to_string())
+                            })?,
+                            language_id: name.language_id,
                         })
-                        .collect::<Result<Vec<_>, _>>()?;
-                    let postscript_name_id = if raw.is_empty() {
-                        None
-                    } else {
-                        Some(raw.read_u16::<BigEndian>()?)
-                    };
-                    let sub_family = name_table
-                        .names
-                        .into_iter()
-                        .find(|name| name.name_id == sub_family_name_id)
-                        .and_then(|name| {
-                            Some(Name {
-                                id: name.name_id,
-                                name: name.to_string().or_else(|| {
-                                    // try to force unicode encoding
-                                    Some(std::str::from_utf8(name.name).ok()?.to_string())
-                                })?,
-                                language_id: name.language_id,
-                            })
-                        });
-                    let postscript = name_table
-                        .names
-                        .into_iter()
-                        .find(|name| Some(name.name_id) == postscript_name_id)
-                        .and_then(|name| {
-                            Some(Name {
-                                id: name.name_id,
-                                name: name.to_string().or_else(|| {
-                                    // try to force unicode encoding
-                                    Some(std::str::from_utf8(name.name).ok()?.to_string())
-                                })?,
-                                language_id: name.language_id,
-                            })
-                        });
-                    if let (Some(sub_family), Some(postscript)) = (sub_family, postscript) {
-                        instances.entry(coords).or_default().push(FvarInstance {
-                            sub_family,
-                            postscript,
+                    });
+                let postscript = name_table
+                    .names
+                    .into_iter()
+                    .find(|name| Some(name.name_id) == postscript_name_id)
+                    .and_then(|name| {
+                        Some(Name {
+                            id: name.name_id,
+                            name: name.to_string().or_else(|| {
+                                // try to force unicode encoding
+                                Some(std::str::from_utf8(name.name).ok()?.to_string())
+                            })?,
+                            language_id: name.language_id,
                         })
-                    }
+                    });
+                if let (Some(sub_family), Some(postscript)) = (sub_family, postscript) {
+                    instances.entry(coords).or_default().push(FvarInstance {
+                        sub_family,
+                        postscript,
+                    })
                 }
             }
-            if !instances.is_empty() {
-                return Ok(instances
-                    .into_iter()
-                    .map(|(coords, names)| {
-                        Font::from_buffer_with_variant(
-                            buffer.clone(),
-                            Variant::Instance {
-                                coords: coords.into_iter().map(|v| Fixed(v.0)).collect(),
-                                names,
-                                axes: axes.clone(),
-                            },
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?
-                    .into_iter()
-                    .flatten()
-                    .collect());
-            }
         }
+        let instances = instances
+            .into_iter()
+            .map(|(coords, names)| {
+                return (
+                    coords.into_iter().map(|v| Fixed(v.0)).collect::<Vec<_>>(),
+                    names,
+                );
+            })
+            .collect::<Vec<_>>();
         let mut style_names = vec![];
         let names = face
-            .borrow_face()
             .names()
             .into_iter()
             .filter_map(|name| {
@@ -420,19 +317,16 @@ impl Font {
                     name
                 }
             });
-        let mut key = FontKey {
-            weight: Some(face.borrow_face().weight().to_number()),
-            italic: Some(face.borrow_face().is_italic()),
-            stretch: Some(face.borrow_face().width().to_number()),
-            family: ascii_name.unwrap_or_else(|| names[0].name.clone()),
+        let mut results = vec![];
+        let key = FontKey {
+            weight: Some(face.weight().to_number()),
+            italic: Some(face.is_italic()),
+            stretch: Some(face.width().to_number()),
+            family: ascii_name.clone().unwrap_or_else(|| names[0].name.clone()),
             variations: vec![],
         };
-        if let Variant::Instance {
-            coords,
-            names,
-            axes,
-        } = &variant
-        {
+        for (coords, variation_names) in instances {
+            let mut key = key.clone();
             let width_axis_index = axes
                 .iter()
                 .position(|axis| axis.tag == ttf_parser::Tag::from_bytes(b"wdth"));
@@ -445,34 +339,133 @@ impl Font {
             if let Some(value) = weight_axis_index.and_then(|i| coords.get(i)) {
                 key.weight = Some(value.0 as u16);
             }
-            key.family = names[0].postscript.name.clone();
-            face.with_face_mut(|face| {
-                for (coord, axis) in coords.iter().zip(axes.iter()) {
-                    face.set_variation(axis.tag, coord.0);
-                }
-            });
+            key.family = variation_names[0].postscript.name.clone();
             for (coord, axis) in coords.iter().zip(axes.iter()) {
                 key.variations
                     .push((String::from_utf8(axis.tag.to_bytes().to_vec())?, coord.0));
             }
+            results.push(VariationData {
+                key,
+                names: names.clone(),
+                style_names: style_names.clone(),
+                variation_names,
+                index,
+            });
         }
-        let font = Font {
-            names,
-            key,
-            variant,
-            face: Arc::new(ArcSwap::new(Arc::new(Some(face)))),
+        if results.is_empty() {
+            // this is not a variable font, add normal font data
+            results.push(VariationData {
+                names,
+                key,
+                variation_names: vec![],
+                style_names,
+                index,
+            })
+        }
+        Ok(results)
+    }
+
+    fn is_variable(&self) -> bool {
+        !self.key.variations.is_empty()
+    }
+
+    fn fulfils(&self, query: &Filter) -> bool {
+        match *query {
+            Filter::Family(name) => {
+                if self.key.family == name {
+                    return true;
+                }
+                if self.names.iter().any(|n| n.name == name) {
+                    return true;
+                }
+                if self.is_variable() {
+                    use inflections::Inflect;
+                    return self.variation_names.iter().any(|n| {
+                        n.postscript.name == name
+                            || n.postscript
+                                .name
+                                .replace(&n.sub_family.name, &n.sub_family.name.to_pascal_case())
+                                == name
+                    });
+                }
+
+                false
+            }
+            Filter::Italic(i) => self.key.italic.unwrap_or_default() == i,
+            Filter::Stretch(s) => self.key.stretch.unwrap_or(5) == s,
+            Filter::Weight(w) => w == 0 || self.key.weight.unwrap_or(400) == w,
+            Filter::Variations(v) => v.iter().all(|(s, v)| {
+                self.key
+                    .variations
+                    .iter()
+                    .any(|(ss, sv)| ss == s && v == sv)
+            }),
+        }
+    }
+}
+
+pub(crate) struct Font {
+    path: Option<PathBuf>,
+    buffer: ArcSwap<Vec<u8>>,
+    /// [Font variation](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar) and font collection data
+    variants: Vec<VariationData>,
+}
+
+impl Font {
+    pub fn fulfils(&self, query: &Filter) -> bool {
+        self.variants.iter().any(|v| v.fulfils(query))
+    }
+
+    pub fn first_key(&self) -> FontKey {
+        self.variants[0].key.clone()
+    }
+
+    pub fn set_path(&mut self, path: PathBuf) {
+        self.path = Some(path);
+    }
+
+    #[cfg(feature = "parse")]
+    pub(super) fn from_buffer(mut buffer: Vec<u8>) -> Result<Self, Error> {
+        let mut variants = vec![0];
+        if is_otf(&buffer) {
+            variants = (0..ttf_parser::fonts_in_collection(&buffer).unwrap_or(1)).collect();
+        }
+        #[cfg(feature = "woff2-patched")]
+        if is_woff2(&buffer) {
+            buffer = woff2_patched::convert_woff2_to_ttf(&mut buffer.as_slice())?;
+        }
+        #[cfg(feature = "parse")]
+        if is_woff(&buffer) {
+            use std::io::Cursor;
+
+            let reader = Cursor::new(buffer);
+            let mut otf_buf = Cursor::new(Vec::new());
+            crate::conv::woff::convert_woff_to_otf(reader, &mut otf_buf)?;
+            buffer = otf_buf.into_inner();
+        }
+        if buffer.is_empty() {
+            return Err(Error::UnsupportedMIME("unknown"));
+        }
+        let variants = variants
+            .into_iter()
+            .map(|v| VariationData::parse_buffer_with_index(&buffer, v))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        Ok(Font {
             path: None,
-            style_names,
-        };
-        Ok(vec![font])
+            buffer: ArcSwap::new(Arc::new(buffer)),
+            variants,
+        })
     }
 
     pub fn unload(&self) {
-        self.face.swap(Arc::new(None));
+        self.buffer.swap(Arc::default());
     }
 
     pub fn load(&self) -> Result<(), Error> {
-        if self.face.load().is_some() {
+        if !self.buffer.load().is_empty() {
             return Ok(());
         }
         #[cfg(feature = "parse")]
@@ -480,67 +473,89 @@ impl Font {
             let mut buffer = Vec::new();
             let mut file = std::fs::File::open(path)?;
             file.read_to_end(&mut buffer).unwrap();
-            let mut fonts = Font::from_buffer_with_variant(buffer, self.variant.clone())?;
-            fonts.truncate(1);
-            if let Some(font) = fonts.pop() {
-                self.face.store(font.face.load_full());
-            }
+            self.buffer.swap(Arc::new(buffer));
         }
         Ok(())
-    }
-
-    pub fn has_glyph(&self, c: char) -> bool {
-        self.load().unwrap();
-        let f = self.face.load();
-        let f = f.as_ref().as_ref().unwrap();
-        let f = f.borrow_face();
-        f.glyph_index(c).is_some()
-    }
-
-    pub fn ascender(&self) -> i16 {
-        let f = self.face.load();
-        let f = f.as_ref().as_ref().unwrap();
-        let f = f.borrow_face();
-        f.ascender()
-    }
-
-    pub fn descender(&self) -> i16 {
-        let f = self.face.load();
-        let f = f.as_ref().as_ref().unwrap();
-        let f = f.borrow_face();
-        f.descender()
-    }
-
-    pub fn units_per_em(&self) -> u16 {
-        let f = self.face.load();
-        let f = f.as_ref().as_ref().unwrap();
-        let f = f.borrow_face();
-        f.units_per_em()
     }
 
     pub fn path(&self) -> Option<&PathBuf> {
         self.path.as_ref()
     }
 
-    pub fn strikeout_metrics(&self) -> Option<LineMetrics> {
-        let f = self.face.load();
-        let f = f.as_ref().as_ref().unwrap();
-        let f = f.borrow_face();
-        f.strikeout_metrics()
+    pub fn face(&self, key: &FontKey) -> Result<StaticFace, Error> {
+        self.load()?;
+        let buffer = self.buffer.load().clone();
+        let filters = Filter::from_key(key);
+        let mut queue = self.variants.iter().collect::<Vec<_>>();
+        for filter in filters {
+            queue.retain(|v| v.fulfils(&filter));
+            if queue.len() == 1 {
+                break;
+            }
+        }
+        let variant = queue[0];
+        let mut face = StaticFaceTryBuilder {
+            key: variant.key.clone(),
+            path: self.path.clone().unwrap_or_default(),
+            buffer,
+            face_builder: |buf| Face::parse(buf, variant.index),
+        }
+        .try_build()?;
+        face.with_face_mut(|face| {
+            for (coord, axis) in &variant.key.variations {
+                face.set_variation(Tag::from_bytes_lossy(coord.as_bytes()), *axis);
+            }
+        });
+        Ok(face)
     }
 
-    pub fn underline_metrics(&self) -> Option<LineMetrics> {
-        let f = self.face.load();
-        let f = f.as_ref().as_ref().unwrap();
-        let f = f.borrow_face();
-        f.underline_metrics()
+    pub fn variants(&self) -> &[VariationData] {
+        &self.variants
     }
 }
 
 #[self_referencing]
 pub struct StaticFace {
-    pub(crate) buffer: Vec<u8>,
+    key: FontKey,
+    pub(crate) path: PathBuf,
+    pub(crate) buffer: Arc<Vec<u8>>,
     #[borrows(buffer)]
     #[covariant]
     pub(crate) face: Face<'this>,
+}
+
+impl StaticFace {
+    pub fn has_glyph(&self, c: char) -> bool {
+        let f = self.borrow_face();
+        f.glyph_index(c).is_some()
+    }
+
+    pub fn ascender(&self) -> i16 {
+        let f = self.borrow_face();
+        f.ascender()
+    }
+
+    pub fn descender(&self) -> i16 {
+        let f = self.borrow_face();
+        f.descender()
+    }
+
+    pub fn units_per_em(&self) -> u16 {
+        let f = self.borrow_face();
+        f.units_per_em()
+    }
+
+    pub fn strikeout_metrics(&self) -> Option<LineMetrics> {
+        let f = self.borrow_face();
+        f.strikeout_metrics()
+    }
+
+    pub fn underline_metrics(&self) -> Option<LineMetrics> {
+        let f = self.borrow_face();
+        f.underline_metrics()
+    }
+
+    pub fn key(&self) -> FontKey {
+        self.borrow_key().clone()
+    }
 }

@@ -1,27 +1,21 @@
 use crate::bindings::exports::alibaba::fontkit::fontkit_interface as fi;
 use crate::font::FontKey;
 use crate::metrics::TextMetrics;
-use crate::{Font, FontKit, GlyphBitmap};
+use crate::{FontKit, GlyphBitmap, StaticFace};
 
 use crate::bindings::exports::alibaba::fontkit::fontkit_interface::GuestTextMetrics;
 
-impl fi::GuestFont for Font {
+impl fi::GuestFont for StaticFace {
     fn has_glyph(&self, c: char) -> bool {
         self.has_glyph(c)
     }
 
     fn buffer(&self) -> Vec<u8> {
-        self.load().unwrap();
-        let f = self.face.load();
-        let f = f.as_ref().as_ref().unwrap();
-        f.borrow_buffer().clone()
+        self.borrow_buffer().as_ref().clone()
     }
 
     fn path(&self) -> String {
-        self.path()
-            .and_then(|p| p.to_str())
-            .unwrap_or_default()
-            .to_string()
+        self.borrow_path().to_str().unwrap_or_default().to_string()
     }
 
     fn key(&self) -> fi::FontKey {
@@ -126,30 +120,17 @@ impl fi::GuestFontKit for FontKit {
         FontKit::new()
     }
 
-    #[allow(unused)]
-    fn add_font_from_buffer(&self, buffer: Vec<u8>) -> Vec<fi::FontKey> {
-        #[cfg(not(feature = "parse"))]
-        return vec![];
+    fn add_font_from_buffer(&self, buffer: Vec<u8>) {
         #[cfg(feature = "parse")]
-        self.add_font_from_buffer(buffer)
-            .into_iter()
-            .flatten()
-            .map(fi::FontKey::from)
-            .collect()
+        let _ = self.add_font_from_buffer(buffer);
     }
 
     fn query(&self, key: fi::FontKey) -> Option<fi::Font> {
-        self.query(&FontKey::from(key))
-            .map(|f| fi::Font::new(f.clone()))
+        self.query(&FontKey::from(key)).map(fi::Font::new)
     }
 
     fn exact_match(&self, key: fi::FontKey) -> Option<fi::Font> {
-        self.exact_match(&FontKey::from(key))
-            .map(|f| fi::Font::new(f.clone()))
-    }
-
-    fn font_keys(&self) -> Vec<fi::FontKey> {
-        self.font_keys().map(fi::FontKey::from).collect()
+        self.exact_match(&FontKey::from(key)).map(fi::Font::new)
     }
 
     fn len(&self) -> u32 {
@@ -168,27 +149,32 @@ impl fi::GuestFontKit for FontKit {
     fn fonts_info(&self) -> Vec<fi::FontInfo> {
         self.fonts
             .iter()
-            .map(|i| fi::FontInfo {
-                style_names: i
-                    .style_names
+            .flat_map(|i| {
+                i.variants()
                     .iter()
-                    .map(|n| fi::Name {
-                        id: n.id,
-                        name: n.name.clone(),
-                        language_id: n.language_id,
+                    .map(|v| fi::FontInfo {
+                        style_names: v
+                            .style_names
+                            .iter()
+                            .map(|n| fi::Name {
+                                id: n.id,
+                                name: n.name.clone(),
+                                language_id: n.language_id,
+                            })
+                            .collect(),
+                        key: fi::FontKey::from(v.key.clone()),
+                        names: v
+                            .names
+                            .iter()
+                            .map(|n| fi::Name {
+                                id: n.id,
+                                name: n.name.clone(),
+                                language_id: n.language_id,
+                            })
+                            .collect(),
+                        path: i.path().and_then(|p| Some(p.to_str()?.to_string())),
                     })
-                    .collect(),
-                key: fi::FontKey::from(i.key().clone()),
-                names: i
-                    .names
-                    .iter()
-                    .map(|n| fi::Name {
-                        id: n.id,
-                        name: n.name.clone(),
-                        language_id: n.language_id,
-                    })
-                    .collect(),
-                path: i.path().and_then(|p| Some(p.to_str()?.to_string())),
+                    .collect::<Vec<_>>()
             })
             .collect()
     }
@@ -264,7 +250,7 @@ impl GuestTextMetrics for TextMetrics {
 struct Component;
 
 impl fi::Guest for Component {
-    type Font = Font;
+    type Font = StaticFace;
     type FontKit = FontKit;
     type GlyphBitmap = GlyphBitmap;
     type TextMetrics = TextMetrics;

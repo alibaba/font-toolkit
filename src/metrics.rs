@@ -1,4 +1,4 @@
-use crate::{Error, Font};
+use crate::{Error, StaticFace};
 pub use compose::*;
 use std::borrow::Cow;
 use std::sync::{Arc, RwLock};
@@ -10,14 +10,11 @@ use unicode_script::{Script, ScriptExtension};
 mod arabic;
 mod compose;
 
-impl Font {
+impl StaticFace {
     /// Measure a string slice. If certain character is missing, the related
     /// [`CharMetrics`] 's `missing` field will be `true`
     pub fn measure(&self, text: &str) -> Result<TextMetrics, Error> {
-        self.load()?;
-        let f = self.face.load();
-        let f = f.as_ref().as_ref().unwrap();
-        let font = f.borrow_face();
+        let font = self.borrow_face();
         let mut positions = vec![];
         let mut prev = 0 as char;
         let mut value = Cow::Borrowed(text);
@@ -104,9 +101,7 @@ impl Font {
 
     /// Measure the metrics of a single unicode charactor
     pub(crate) fn measure_char(&self, c: char) -> Option<CharMetrics> {
-        let f = self.face.load();
-        let f = f.as_ref().as_ref()?;
-        let f = f.borrow_face();
+        let f = self.borrow_face();
         let height = f.height();
         let units = f.units_per_em() as f32;
         let glyph_id = f.glyph_index(c)?;
@@ -137,9 +132,7 @@ impl Font {
     /// Check if there's any kerning data between two charactors, units are
     /// handled
     fn kerning(&self, prev: char, c: char) -> Option<i16> {
-        let f = self.face.load();
-        let f = f.as_ref().as_ref()?;
-        let f = f.borrow_face();
+        let f = self.borrow_face();
         let pid = f.glyph_index(prev)?;
         let cid = f.glyph_index(c)?;
         let mut kerning = 0;

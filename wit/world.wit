@@ -84,15 +84,13 @@ interface fontkit-interface {
         constructor();
         /// Register a font (or several fonts in case of ttc), return the keys of added fonts.
         /// The file type is extracted from the buffer by checking magic numbers
-        add-font-from-buffer: func(buffer: list<u8>) -> list<font-key>;
+        add-font-from-buffer: func(buffer: list<u8>) ;
         /// Search and add fonts from a path
         add-search-path: func(path: string);
         /// Query font using a key, this API returns valid result only if a single result is found
         query: func(key: font-key) -> option<font>;
         /// Using exact-match method to directly obtain a font, skipping the querying logic
         exact-match: func(key: font-key) -> option<font>;
-        /// Get all registered fonts' keys
-        font-keys: func() -> list<font-key>;
         /// Get detailed info of all fonts registered
         fonts-info: func() -> list<font-info>;
         /// Get number of registered fonts
