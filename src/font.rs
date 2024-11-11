@@ -1,10 +1,10 @@
 use arc_swap::ArcSwap;
 #[cfg(feature = "parse")]
 use byteorder::{BigEndian, ReadBytesExt};
+#[cfg(feature = "parse")]
+use indexmap::IndexMap;
 use ordered_float::OrderedFloat;
 use ouroboros::self_referencing;
-#[cfg(feature = "parse")]
-use std::collections::HashMap;
 use std::fmt;
 use std::hash::Hash;
 #[cfg(feature = "parse")]
@@ -114,16 +114,6 @@ pub(super) struct FvarInstance {
     pub(super) postscript: Name,
 }
 
-#[derive(Clone)]
-enum Variant {
-    Index(u32),
-    Instance {
-        coords: Vec<Fixed>,
-        names: Vec<FvarInstance>,
-        axes: Vec<VariationAxis>,
-    },
-}
-
 /// Returns whether a buffer is WOFF font data.
 pub fn is_woff(buf: &[u8]) -> bool {
     buf.len() > 4 && buf[0] == 0x77 && buf[1] == 0x4F && buf[2] == 0x46 && buf[3] == 0x46
@@ -154,6 +144,7 @@ pub fn is_otf(buf: &[u8]) -> bool {
         && buf[4] == 0x00
 }
 
+#[derive(Debug)]
 pub(crate) struct VariationData {
     pub key: FontKey,
     pub names: Vec<Name>,
@@ -177,7 +168,7 @@ impl VariationData {
             .collect::<Vec<_>>();
 
         // get fvar if any
-        let mut instances: HashMap<Vec<OrderedFloat<f32>>, Vec<FvarInstance>> = HashMap::new();
+        let mut instances: IndexMap<Vec<OrderedFloat<f32>>, Vec<FvarInstance>> = IndexMap::new();
         if let (Some(_), Some(name_table)) = (face.tables().fvar, face.tables().name) {
             // currently ttf-parser is missing `fvar`'s instance records, we parse them
             // directly from `RawFace`
@@ -334,12 +325,12 @@ impl VariationData {
                 .iter()
                 .position(|axis| axis.tag == ttf_parser::Tag::from_bytes(b"wght"));
             if let Some(value) = width_axis_index.and_then(|i| coords.get(i)) {
-                key.stretch = Some(value.0 as u16);
+                // mapping wdth to usWidthClass, ref: https://learn.microsoft.com/en-us/typography/opentype/spec/dvaraxistag_wdth
+                key.stretch = Some(((value.0 / 100.0) * 5.0).round().min(1.0).max(9.0) as u16);
             }
             if let Some(value) = weight_axis_index.and_then(|i| coords.get(i)) {
                 key.weight = Some(value.0 as u16);
             }
-            key.family = variation_names[0].postscript.name.clone();
             for (coord, axis) in coords.iter().zip(axes.iter()) {
                 key.variations
                     .push((String::from_utf8(axis.tag.to_bytes().to_vec())?, coord.0));
@@ -473,6 +464,20 @@ impl Font {
             let mut buffer = Vec::new();
             let mut file = std::fs::File::open(path)?;
             file.read_to_end(&mut buffer).unwrap();
+
+            #[cfg(feature = "woff2-patched")]
+            if is_woff2(&buffer) {
+                buffer = woff2_patched::convert_woff2_to_ttf(&mut buffer.as_slice())?;
+            }
+            #[cfg(feature = "parse")]
+            if is_woff(&buffer) {
+                use std::io::Cursor;
+
+                let reader = Cursor::new(buffer);
+                let mut otf_buf = Cursor::new(Vec::new());
+                crate::conv::woff::convert_woff_to_otf(reader, &mut otf_buf)?;
+                buffer = otf_buf.into_inner();
+            }
             self.buffer.swap(Arc::new(buffer));
         }
         Ok(())
@@ -488,9 +493,15 @@ impl Font {
         let filters = Filter::from_key(key);
         let mut queue = self.variants.iter().collect::<Vec<_>>();
         for filter in filters {
-            queue.retain(|v| v.fulfils(&filter));
-            if queue.len() == 1 {
+            let mut q = queue.clone();
+            q.retain(|v| v.fulfils(&filter));
+            if q.len() == 1 {
+                queue = q;
                 break;
+            } else if q.is_empty() {
+                break;
+            } else {
+                queue = q;
             }
         }
         let variant = queue[0];
@@ -500,7 +511,8 @@ impl Font {
             buffer,
             face_builder: |buf| Face::parse(buf, variant.index),
         }
-        .try_build()?;
+        .try_build()
+        .unwrap();
         face.with_face_mut(|face| {
             for (coord, axis) in &variant.key.variations {
                 face.set_variation(Tag::from_bytes_lossy(coord.as_bytes()), *axis);

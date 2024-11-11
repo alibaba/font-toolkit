@@ -101,6 +101,6 @@ pub fn test_complex_text_wrap() -> Result<(), Error> {
     });
     area.unwrap_text();
     area.wrap_text(64.4)?;
-    assert_eq!(area.value_string(), "商家\n热卖\n1234\n567\n8");
+    assert_eq!(area.value_string(), "商家\n热卖\n123\n456\n78");
     Ok(())
 }

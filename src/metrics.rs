@@ -253,7 +253,7 @@ impl TextMetrics {
         }
     }
 
-    pub(crate) fn has_missing(&self) -> bool {
+    pub fn has_missing(&self) -> bool {
         self.positions
             .read()
             .map(|p| p.iter().any(|c| c.metrics.missing))

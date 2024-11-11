@@ -130,13 +130,25 @@ impl FontKit {
     }
 
     pub fn exact_match(&self, key: &font::FontKey) -> Option<StaticFace> {
-        return self.fonts.get(key)?.face(key).ok();
+        let face = self.query(key)?;
+        let mut patched_key = key.clone();
+        if patched_key.weight.is_none() {
+            patched_key.weight = Some(400);
+        }
+        if patched_key.stretch.is_none() {
+            patched_key.stretch = Some(5);
+        }
+        if patched_key.italic.is_none() {
+            patched_key.italic = Some(false);
+        }
+        if face.key() == patched_key {
+            return Some(face);
+        } else {
+            return None;
+        }
     }
 
     pub fn query(&self, key: &font::FontKey) -> Option<StaticFace> {
-        if let Some(result) = self.exact_match(key) {
-            return Some(result as _);
-        }
         let mut search_results = self
             .fonts
             .iter()
@@ -162,6 +174,19 @@ impl FontKit {
             }
         }
         None
+    }
+
+    pub fn keys(&self) -> Vec<FontKey> {
+        self.fonts
+            .iter()
+            .flat_map(|i| {
+                i.value()
+                    .variants()
+                    .iter()
+                    .map(|i| i.key.clone())
+                    .collect::<Vec<_>>()
+            })
+            .collect()
     }
 }
 
@@ -206,7 +231,7 @@ fn load_font_from_path(path: impl AsRef<std::path::Path>) -> Option<Font> {
                 }
             };
             font.set_path(path.to_path_buf());
-            // println!("{:?}", font.names);
+            // println!("{:?}", font.variants());
             font.unload();
             Some(font)
         }
