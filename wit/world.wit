@@ -89,6 +89,8 @@ interface fontkit-interface {
         add-search-path: func(path: string);
         /// Query font using a key, this API returns valid result only if a single result is found
         query: func(key: font-key) -> option<font>;
+        /// Query the info of font, even if the font is unloaded and `query` returns `None`
+        query-font-info: func(key: font-key) -> option<list<font-info>>;
         /// Using exact-match method to directly obtain a font, skipping the querying logic
         exact-match: func(key: font-key) -> option<font>;
         /// Get detailed info of all fonts registered
@@ -99,6 +101,10 @@ interface fontkit-interface {
         remove: func(key: font-key);
         /// Measure a text with some fallback logic
         measure: func(key: font-key, text: string) -> option<text-metrics>;
+        /// Export all font data into a JSON string
+        write-data: func() -> string;
+        /// Load font data from JSON
+        read-data: func(data: string);
     }
     str-width-to-number: func(width: string) -> u16;
     number-width-to-str: func(width: u16) -> string;

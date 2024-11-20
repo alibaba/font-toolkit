@@ -48,7 +48,7 @@ pub fn number_width_to_str(width: u16) -> String {
     .to_string()
 }
 
-#[derive(Clone, PartialEq, PartialOrd, Debug, Default)]
+#[derive(Clone, PartialEq, PartialOrd, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct FontKey {
     /// Font weight, same as CSS [font-weight](https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight#common_weight_name_mapping)
     pub weight: Option<u16>,
@@ -99,7 +99,7 @@ impl fmt::Display for FontKey {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(super) struct Name {
     pub id: u16,
     pub name: String,
@@ -107,7 +107,7 @@ pub(super) struct Name {
     pub language_id: u16,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(super) struct FvarInstance {
     #[allow(unused)]
     pub(super) sub_family: Name,
@@ -144,7 +144,7 @@ pub fn is_otf(buf: &[u8]) -> bool {
         && buf[4] == 0x00
 }
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) struct VariationData {
     pub key: FontKey,
     pub names: Vec<Name>,
@@ -523,6 +523,14 @@ impl Font {
 
     pub fn variants(&self) -> &[VariationData] {
         &self.variants
+    }
+
+    pub(super) fn new(path: Option<PathBuf>, variants: Vec<VariationData>) -> Self {
+        Font {
+            path,
+            variants,
+            buffer: ArcSwap::default(),
+        }
     }
 }
 

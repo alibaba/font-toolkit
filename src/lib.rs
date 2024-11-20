@@ -149,6 +149,10 @@ impl FontKit {
     }
 
     pub fn query(&self, key: &font::FontKey) -> Option<StaticFace> {
+        self.fonts.get(&self.query_font(key)?)?.face(key).ok()
+    }
+
+    pub(crate) fn query_font(&self, key: &font::FontKey) -> Option<font::FontKey> {
         let mut search_results = self
             .fonts
             .iter()
@@ -167,7 +171,7 @@ impl FontKit {
                 font.fulfils(&filter)
             });
             match s.len() {
-                1 => return self.fonts.get(s.iter().next()?)?.face(key).ok(),
+                1 => return s.iter().next().cloned(),
                 0 if is_family => return None,
                 0 => {}
                 _ => search_results = s,
@@ -231,7 +235,6 @@ fn load_font_from_path(path: impl AsRef<std::path::Path>) -> Option<Font> {
                 }
             };
             font.set_path(path.to_path_buf());
-            // println!("{:?}", font.variants());
             font.unload();
             Some(font)
         }

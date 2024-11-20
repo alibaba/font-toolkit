@@ -1,7 +1,9 @@
+use std::path::PathBuf;
+
 use crate::bindings::exports::alibaba::fontkit::fontkit_interface as fi;
 use crate::font::FontKey;
 use crate::metrics::TextMetrics;
-use crate::{FontKit, GlyphBitmap, StaticFace};
+use crate::{Font, FontKit, GlyphBitmap, StaticFace, VariationData};
 
 use crate::bindings::exports::alibaba::fontkit::fontkit_interface::GuestTextMetrics;
 
@@ -147,40 +149,54 @@ impl fi::GuestFontKit for FontKit {
     }
 
     fn fonts_info(&self) -> Vec<fi::FontInfo> {
-        self.fonts
-            .iter()
-            .flat_map(|i| {
-                i.variants()
-                    .iter()
-                    .map(|v| fi::FontInfo {
-                        style_names: v
-                            .style_names
-                            .iter()
-                            .map(|n| fi::Name {
-                                id: n.id,
-                                name: n.name.clone(),
-                                language_id: n.language_id,
-                            })
-                            .collect(),
-                        key: fi::FontKey::from(v.key.clone()),
-                        names: v
-                            .names
-                            .iter()
-                            .map(|n| fi::Name {
-                                id: n.id,
-                                name: n.name.clone(),
-                                language_id: n.language_id,
-                            })
-                            .collect(),
-                        path: i.path().and_then(|p| Some(p.to_str()?.to_string())),
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect()
+        self.fonts.iter().flat_map(|i| font_info(&*i)).collect()
     }
 
     fn measure(&self, key: fi::FontKey, text: String) -> Option<fi::TextMetrics> {
         Some(fi::TextMetrics::new(self.measure(&key.into(), &text)?))
+    }
+
+    fn read_data(&self, data: String) {
+        let result: Result<Vec<serde_json::Map<String, serde_json::Value>>, _> =
+            serde_json::from_str(&data);
+        if let Ok(data) = result {
+            for item in data {
+                let path = item
+                    .get("path")
+                    .and_then(|v| serde_json::from_value::<Option<PathBuf>>(v.clone()).ok());
+                let variants = item
+                    .get("variants")
+                    .and_then(|v| serde_json::from_value::<Vec<VariationData>>(v.clone()).ok());
+                if let (Some(path), Some(variants)) = (path, variants) {
+                    let font = Font::new(path, variants);
+                    let key = font.first_key();
+                    self.fonts.insert(key, font);
+                }
+            }
+        }
+    }
+
+    fn write_data(&self) -> String {
+        let mut result = vec![];
+        for value in self.fonts.iter() {
+            let font = value.value();
+            let mut value = serde_json::Map::new();
+            value.insert(
+                "path".to_string(),
+                serde_json::to_value(font.path()).unwrap(),
+            );
+            value.insert(
+                "variants".to_string(),
+                serde_json::to_value(font.variants()).unwrap(),
+            );
+            result.push(value);
+        }
+        serde_json::to_string(&result).unwrap()
+    }
+
+    fn query_font_info(&self, key: fi::FontKey) -> Option<Vec<fi::FontInfo>> {
+        let font = self.fonts.get(&self.query_font(&key)?)?;
+        Some(font_info(&*font))
     }
 }
 
@@ -265,3 +281,31 @@ impl fi::Guest for Component {
 }
 
 crate::bindings::export!(Component with_types_in crate::bindings);
+
+fn font_info(font: &Font) -> Vec<fi::FontInfo> {
+    font.variants()
+        .iter()
+        .map(|v| fi::FontInfo {
+            style_names: v
+                .style_names
+                .iter()
+                .map(|n| fi::Name {
+                    id: n.id,
+                    name: n.name.clone(),
+                    language_id: n.language_id,
+                })
+                .collect(),
+            key: fi::FontKey::from(v.key.clone()),
+            names: v
+                .names
+                .iter()
+                .map(|n| fi::Name {
+                    id: n.id,
+                    name: n.name.clone(),
+                    language_id: n.language_id,
+                })
+                .collect(),
+            path: font.path().and_then(|p| Some(p.to_str()?.to_string())),
+        })
+        .collect::<Vec<_>>()
+}
