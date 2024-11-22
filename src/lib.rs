@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 #[cfg(feature = "parse")]
 use std::path::Path;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 pub use ttf_parser::LineMetrics;
 
 #[cfg(all(target_arch = "wasm32", feature = "wit"))]
@@ -30,6 +32,8 @@ pub struct FontKit {
     fonts: dashmap::DashMap<font::FontKey, Font>,
     fallback_font_key: Option<Box<dyn Fn(font::FontKey) -> font::FontKey + Send + Sync>>,
     emoji_font_key: Option<font::FontKey>,
+    pub(crate) lru_limit: AtomicU32,
+    hit_counter: Arc<AtomicU32>,
 }
 
 impl FontKit {
@@ -39,6 +43,8 @@ impl FontKit {
             fonts: dashmap::DashMap::new(),
             fallback_font_key: None,
             emoji_font_key: None,
+            lru_limit: AtomicU32::default(),
+            hit_counter: Arc::default(),
         }
     }
 
@@ -105,17 +111,65 @@ impl FontKit {
         self.fonts.remove(&key);
     }
 
+    pub fn set_lru_limit(&self, limit: u32) {
+        self.lru_limit.store(limit, Ordering::SeqCst);
+    }
+
+    pub fn buffer_size(&self) -> usize {
+        self.fonts
+            .iter()
+            .map(|font| font.buffer_size())
+            .sum::<usize>()
+    }
+
+    pub fn check_lru(&self) {
+        let limit = self.lru_limit.load(Ordering::SeqCst) as usize * 4 * 1024;
+        if limit == 0 {
+            return;
+        }
+        let mut current_size = self.buffer_size();
+        let mut loaded_fonts = self.fonts.iter().filter(|f| f.buffer_size() > 0).count();
+        while current_size > limit && loaded_fonts > 1 {
+            let font = self
+                .fonts
+                .iter()
+                .filter(|f| f.buffer_size() > 0)
+                .min_by(|a, b| {
+                    a.hit_index
+                        .load(Ordering::SeqCst)
+                        .cmp(&b.hit_index.load(Ordering::SeqCst))
+                });
+
+            let hit_index = font
+                .as_ref()
+                .map(|f| f.hit_index.load(Ordering::SeqCst))
+                .unwrap_or(0);
+            if let Some(f) = font {
+                current_size -= f.buffer_size();
+                f.unload();
+            }
+            self.hit_counter.fetch_sub(hit_index, Ordering::SeqCst);
+            for f in self.fonts.iter() {
+                f.hit_index.fetch_sub(hit_index, Ordering::SeqCst);
+            }
+            loaded_fonts = self.fonts.iter().filter(|f| f.buffer_size() > 0).count();
+        }
+    }
+
     /// Add fonts from a buffer. This will load the fonts and store the buffer
     /// in FontKit. Type information is inferred from the magic number using
     /// `infer` crate.
-    ///
-    /// If the given buffer is a font collection (ttc), multiple keys will be
-    /// returned.
     #[cfg(feature = "parse")]
     pub fn add_font_from_buffer(&self, buffer: Vec<u8>) -> Result<(), Error> {
-        let font = Font::from_buffer(buffer)?;
+        let mut font = Font::from_buffer(buffer, self.hit_counter.clone())?;
         let key = font.first_key();
+        if let Some(v) = self.fonts.get(&key) {
+            if let Some(path) = v.path().cloned() {
+                font.set_path(path);
+            }
+        }
         self.fonts.insert(key, font);
+        self.check_lru();
         Ok(())
     }
 
@@ -123,8 +177,49 @@ impl FontKit {
     /// font buffer to reduce memory consumption
     #[cfg(feature = "parse")]
     pub fn search_fonts_from_path(&self, path: impl AsRef<Path>) -> Result<(), Error> {
-        if let Some(font) = load_font_from_path(&path) {
-            self.fonts.insert(font.first_key(), font);
+        use std::io::Read;
+        // if path.as_ref().is_dir() {
+        //     let mut result = vec![];
+        //     if let Ok(data) = fs::read_dir(path) {
+        //         for entry in data {
+        //             if let Ok(entry) = entry {
+        //
+        // result.extend(load_font_from_path(&entry.path()).into_iter().flatten());
+        //             }
+        //         }
+        //     }
+        //     return Some(result);
+        // }
+
+        let mut buffer = Vec::new();
+        let path = path.as_ref();
+        let ext = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_lowercase());
+        let ext = ext.as_deref();
+        let ext = match ext {
+            Some(e) => e,
+            None => return Ok(()),
+        };
+        match ext {
+            "ttf" | "otf" | "ttc" | "woff2" | "woff" => {
+                let mut file = std::fs::File::open(&path).unwrap();
+                buffer.clear();
+                file.read_to_end(&mut buffer).unwrap();
+                let mut font = match Font::from_buffer(buffer, self.hit_counter.clone()) {
+                    Ok(f) => f,
+                    Err(e) => {
+                        log::warn!("Failed loading font {:?}: {:?}", path, e);
+                        return Ok(());
+                    }
+                };
+                font.set_path(path.to_path_buf());
+                font.unload();
+                self.fonts.insert(font.first_key(), font);
+                self.check_lru();
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -149,7 +244,9 @@ impl FontKit {
     }
 
     pub fn query(&self, key: &font::FontKey) -> Option<StaticFace> {
-        self.fonts.get(&self.query_font(key)?)?.face(key).ok()
+        let result = self.fonts.get(&self.query_font(key)?)?.face(key).ok();
+        self.check_lru();
+        result
     }
 
     pub(crate) fn query_font(&self, key: &font::FontKey) -> Option<font::FontKey> {
@@ -191,54 +288,6 @@ impl FontKit {
                     .collect::<Vec<_>>()
             })
             .collect()
-    }
-}
-
-#[cfg(feature = "parse")]
-fn load_font_from_path(path: impl AsRef<std::path::Path>) -> Option<Font> {
-    use std::io::Read;
-
-    // if path.as_ref().is_dir() {
-    //     let mut result = vec![];
-    //     if let Ok(data) = fs::read_dir(path) {
-    //         for entry in data {
-    //             if let Ok(entry) = entry {
-    //
-    // result.extend(load_font_from_path(&entry.path()).into_iter().flatten());
-    //             }
-    //         }
-    //     }
-    //     return Some(result);
-    // }
-
-    let mut buffer = Vec::new();
-    let path = path.as_ref();
-    let ext = path
-        .extension()
-        .and_then(|s| s.to_str())
-        .map(|s| s.to_lowercase());
-    let ext = ext.as_deref();
-    let ext = match ext {
-        Some(e) => e,
-        None => return None,
-    };
-    match ext {
-        "ttf" | "otf" | "ttc" | "woff2" | "woff" => {
-            let mut file = std::fs::File::open(&path).unwrap();
-            buffer.clear();
-            file.read_to_end(&mut buffer).unwrap();
-            let mut font = match Font::from_buffer(buffer) {
-                Ok(f) => f,
-                Err(e) => {
-                    log::warn!("Failed loading font {:?}: {:?}", path, e);
-                    return None;
-                }
-            };
-            font.set_path(path.to_path_buf());
-            font.unload();
-            Some(font)
-        }
-        _ => None,
     }
 }
 

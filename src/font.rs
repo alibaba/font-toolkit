@@ -10,6 +10,7 @@ use std::hash::Hash;
 #[cfg(feature = "parse")]
 use std::io::Read;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 pub use ttf_parser::LineMetrics;
 use ttf_parser::{Face, Fixed, Tag, VariationAxis, Width as ParserWidth};
@@ -400,6 +401,8 @@ pub(crate) struct Font {
     buffer: ArcSwap<Vec<u8>>,
     /// [Font variation](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar) and font collection data
     variants: Vec<VariationData>,
+    hit_counter: Arc<AtomicU32>,
+    pub(crate) hit_index: AtomicU32,
 }
 
 impl Font {
@@ -416,7 +419,10 @@ impl Font {
     }
 
     #[cfg(feature = "parse")]
-    pub(super) fn from_buffer(mut buffer: Vec<u8>) -> Result<Self, Error> {
+    pub(super) fn from_buffer(
+        mut buffer: Vec<u8>,
+        hit_counter: Arc<AtomicU32>,
+    ) -> Result<Self, Error> {
         let mut variants = vec![0];
         if is_otf(&buffer) {
             variants = (0..ttf_parser::fonts_in_collection(&buffer).unwrap_or(1)).collect();
@@ -448,6 +454,8 @@ impl Font {
             path: None,
             buffer: ArcSwap::new(Arc::new(buffer)),
             variants,
+            hit_index: AtomicU32::default(),
+            hit_counter,
         })
     }
 
@@ -459,6 +467,8 @@ impl Font {
         if !self.buffer.load().is_empty() {
             return Ok(());
         }
+        let hit_index = self.hit_counter.fetch_add(1, Ordering::SeqCst);
+        self.hit_index.store(hit_index, Ordering::SeqCst);
         #[cfg(feature = "parse")]
         if let Some(path) = self.path.as_ref() {
             let mut buffer = Vec::new();
@@ -525,12 +535,22 @@ impl Font {
         &self.variants
     }
 
-    pub(super) fn new(path: Option<PathBuf>, variants: Vec<VariationData>) -> Self {
+    pub(super) fn new(
+        path: Option<PathBuf>,
+        variants: Vec<VariationData>,
+        hit_counter: Arc<AtomicU32>,
+    ) -> Self {
         Font {
             path,
             variants,
             buffer: ArcSwap::default(),
+            hit_index: AtomicU32::default(),
+            hit_counter,
         }
+    }
+
+    pub(super) fn buffer_size(&self) -> usize {
+        self.buffer.load().len()
     }
 }
 

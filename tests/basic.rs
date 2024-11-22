@@ -104,3 +104,21 @@ pub fn test_complex_text_wrap() -> Result<(), Error> {
     assert_eq!(area.value_string(), "商家\n热卖\n123\n456\n78");
     Ok(())
 }
+
+#[test]
+pub fn test_lru_cache() -> Result<(), Error> {
+    let fontkit = FontKit::new();
+    fontkit.set_lru_limit(1);
+    fontkit.search_fonts_from_path("examples/AlimamaFangYuanTiVF.ttf")?;
+    assert_eq!(fontkit.buffer_size(), 0);
+    let key = fontkit.keys().pop().unwrap();
+    assert!(fontkit.query(&key).is_some());
+    assert_eq!(fontkit.buffer_size(), 7412388);
+    fontkit.search_fonts_from_path("examples/OpenSans-Italic.ttf")?;
+    let key2 = FontKey::new_with_family("Open Sans".to_string());
+    assert!(fontkit.query(&key2).is_some());
+    assert_eq!(fontkit.buffer_size(), 212896);
+    fontkit.query(&key);
+    assert_eq!(fontkit.buffer_size(), 7412388);
+    Ok(())
+}

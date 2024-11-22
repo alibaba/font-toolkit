@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 
 use crate::bindings::exports::alibaba::fontkit::fontkit_interface as fi;
 use crate::font::FontKey;
@@ -168,7 +169,7 @@ impl fi::GuestFontKit for FontKit {
                     .get("variants")
                     .and_then(|v| serde_json::from_value::<Vec<VariationData>>(v.clone()).ok());
                 if let (Some(path), Some(variants)) = (path, variants) {
-                    let font = Font::new(path, variants);
+                    let font = Font::new(path, variants, self.hit_counter.clone());
                     let key = font.first_key();
                     self.fonts.insert(key, font);
                 }
@@ -197,6 +198,10 @@ impl fi::GuestFontKit for FontKit {
     fn query_font_info(&self, key: fi::FontKey) -> Option<Vec<fi::FontInfo>> {
         let font = self.fonts.get(&self.query_font(&key)?)?;
         Some(font_info(&*font))
+    }
+
+    fn set_lru_limit(&self, limit: u32) {
+        self.lru_limit.store(limit, Ordering::SeqCst);
     }
 }
 

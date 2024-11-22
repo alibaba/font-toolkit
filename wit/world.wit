@@ -82,6 +82,8 @@ interface fontkit-interface {
     /// Stores font buffer and provides font-querying APIs
     resource font-kit {
         constructor();
+        /// add an LRU limit for font buffer registry, `limit`'s unit is KB, 0 means caching is disabled
+        set-lru-limit: func(limit: u32);
         /// Register a font (or several fonts in case of ttc), return the keys of added fonts.
         /// The file type is extracted from the buffer by checking magic numbers
         add-font-from-buffer: func(buffer: list<u8>) ;
