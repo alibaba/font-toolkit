@@ -14,7 +14,7 @@ impl fi::GuestFont for StaticFace {
     }
 
     fn buffer(&self) -> Vec<u8> {
-        self.borrow_buffer().as_ref().clone()
+        self.borrow_buffer().clone()
     }
 
     fn path(&self) -> String {

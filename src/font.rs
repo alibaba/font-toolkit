@@ -499,7 +499,7 @@ impl Font {
 
     pub fn face(&self, key: &FontKey) -> Result<StaticFace, Error> {
         self.load()?;
-        let buffer = self.buffer.load().clone();
+        let buffer = self.buffer.load().to_vec();
         let filters = Filter::from_key(key);
         let mut queue = self.variants.iter().collect::<Vec<_>>();
         for filter in filters {
@@ -558,7 +558,7 @@ impl Font {
 pub struct StaticFace {
     key: FontKey,
     pub(crate) path: PathBuf,
-    pub(crate) buffer: Arc<Vec<u8>>,
+    pub(crate) buffer: Vec<u8>,
     #[borrows(buffer)]
     #[covariant]
     pub(crate) face: Face<'this>,
