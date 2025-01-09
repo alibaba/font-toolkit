@@ -203,6 +203,10 @@ impl fi::GuestFontKit for FontKit {
     fn set_lru_limit(&self, limit: u32) {
         self.lru_limit.store(limit, Ordering::SeqCst);
     }
+
+    fn buffer_size(&self) -> u32 {
+        self.buffer_size() as u32
+    }
 }
 
 impl GuestTextMetrics for TextMetrics {

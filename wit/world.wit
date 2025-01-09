@@ -107,6 +107,7 @@ interface fontkit-interface {
         write-data: func() -> string;
         /// Load font data from JSON
         read-data: func(data: string);
+        buffer-size: func() -> u32;
     }
     str-width-to-number: func(width: string) -> u16;
     number-width-to-str: func(width: u16) -> string;
