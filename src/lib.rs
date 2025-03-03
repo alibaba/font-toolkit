@@ -1,3 +1,4 @@
+use arc_swap::ArcSwap;
 use std::collections::HashSet;
 #[cfg(feature = "parse")]
 use std::path::Path;
@@ -28,11 +29,20 @@ pub use tiny_skia_path::{self, PathSegment};
 #[cfg(all(target_arch = "wasm32", feature = "wit"))]
 pub use bindings::exports::alibaba::fontkit::fontkit_interface::TextMetrics;
 
+#[cfg(target_arch = "wasm32")]
+#[global_allocator]
+static ALLOCATOR: talc::TalckWasm = unsafe { talc::TalckWasm::new_global() };
+
+struct Config {
+    pub lru_limit: u32,
+    pub cache_path: Option<String>,
+}
+
 pub struct FontKit {
     fonts: dashmap::DashMap<font::FontKey, Font>,
     fallback_font_key: Option<Box<dyn Fn(font::FontKey) -> font::FontKey + Send + Sync>>,
     emoji_font_key: Option<font::FontKey>,
-    pub(crate) lru_limit: AtomicU32,
+    pub(crate) config: ArcSwap<Config>,
     hit_counter: Arc<AtomicU32>,
 }
 
@@ -43,7 +53,10 @@ impl FontKit {
             fonts: dashmap::DashMap::new(),
             fallback_font_key: None,
             emoji_font_key: None,
-            lru_limit: AtomicU32::default(),
+            config: ArcSwap::new(Arc::new(Config {
+                lru_limit: 0,
+                cache_path: None,
+            })),
             hit_counter: Arc::default(),
         }
     }
@@ -111,10 +124,6 @@ impl FontKit {
         self.fonts.remove(&key);
     }
 
-    pub fn set_lru_limit(&self, limit: u32) {
-        self.lru_limit.store(limit, Ordering::SeqCst);
-    }
-
     pub fn buffer_size(&self) -> usize {
         self.fonts
             .iter()
@@ -123,7 +132,7 @@ impl FontKit {
     }
 
     pub fn check_lru(&self) {
-        let limit = self.lru_limit.load(Ordering::SeqCst) as usize * 4 * 1024;
+        let limit = self.config.load().lru_limit as usize * 1024;
         if limit == 0 {
             return;
         }
@@ -135,9 +144,9 @@ impl FontKit {
                 .iter()
                 .filter(|f| f.buffer_size() > 0)
                 .min_by(|a, b| {
-                    a.hit_index
+                    b.hit_index
                         .load(Ordering::SeqCst)
-                        .cmp(&b.hit_index.load(Ordering::SeqCst))
+                        .cmp(&a.hit_index.load(Ordering::SeqCst))
                 });
 
             let hit_index = font
@@ -145,9 +154,12 @@ impl FontKit {
                 .map(|f| f.hit_index.load(Ordering::SeqCst))
                 .unwrap_or(0);
             if let Some(f) = font {
-                current_size -= f.buffer_size();
                 f.unload();
             }
+            if current_size == self.buffer_size() {
+                break;
+            }
+            current_size = self.buffer_size();
             self.hit_counter.fetch_sub(hit_index, Ordering::SeqCst);
             for f in self.fonts.iter() {
                 f.hit_index.fetch_sub(hit_index, Ordering::SeqCst);
@@ -161,10 +173,30 @@ impl FontKit {
     /// `infer` crate.
     #[cfg(feature = "parse")]
     pub fn add_font_from_buffer(&self, buffer: Vec<u8>) -> Result<(), Error> {
-        let mut font = Font::from_buffer(buffer, self.hit_counter.clone())?;
+        use std::fs::File;
+        use std::io::Write;
+        use std::path::PathBuf;
+        use std::str::FromStr;
+
+        let mut font = Font::from_buffer(buffer.clone(), self.hit_counter.clone())?;
         let key = font.first_key();
         if let Some(v) = self.fonts.get(&key) {
             if let Some(path) = v.path().cloned() {
+                font.set_path(path);
+            }
+        }
+        let cache_path = self.config.load().cache_path.clone();
+        if let Some(mut path) = cache_path.and_then(|p| PathBuf::from_str(&p).ok()) {
+            if font.path().is_none() {
+                path.push(format!(
+                    "{}_{}_{}_{}.ttf",
+                    key.family.replace(['.', ' '], "_"),
+                    key.italic.unwrap_or_default(),
+                    key.stretch.unwrap_or(5),
+                    key.weight.unwrap_or(400)
+                ));
+                let mut f = File::create(&path)?;
+                f.write_all(&buffer)?;
                 font.set_path(path);
             }
         }

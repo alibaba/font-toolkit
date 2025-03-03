@@ -1,6 +1,6 @@
 {
   "name": "fontkit-rs",
-  "version": "0.0.15-beta.4",
+  "version": "0.0.15-beta.11",
   "description": "Toolkit used to load, match, measure, and render texts",
   "main": "index.js",
   "directories": {
@@ -66,6 +66,6 @@
   },
   "type": "module",
   "dependencies": {
-    "@bytecodealliance/preview2-shim": "^0.16.1"
+    "@bytecodealliance/preview2-shim": "^0.17.2"
   }
 }

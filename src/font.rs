@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 pub use ttf_parser::LineMetrics;
-use ttf_parser::{Face, Fixed, Tag, VariationAxis, Width as ParserWidth};
+use ttf_parser::{Face, Tag, Width as ParserWidth};
 
 use crate::{Error, Filter};
 
@@ -157,7 +157,7 @@ pub(crate) struct VariationData {
 impl VariationData {
     #[cfg(feature = "parse")]
     fn parse_buffer_with_index(buffer: &[u8], index: u32) -> Result<Vec<VariationData>, Error> {
-        use ttf_parser::name_id;
+        use ttf_parser::{name_id, Fixed, VariationAxis};
 
         let face = Face::parse(buffer, index)?;
         let axes: Vec<VariationAxis> = face
@@ -460,7 +460,9 @@ impl Font {
     }
 
     pub fn unload(&self) {
-        self.buffer.swap(Arc::default());
+        if self.path.is_some() {
+            self.buffer.swap(Arc::default());
+        }
     }
 
     pub fn load(&self) -> Result<(), Error> {
@@ -499,7 +501,7 @@ impl Font {
 
     pub fn face(&self, key: &FontKey) -> Result<StaticFace, Error> {
         self.load()?;
-        let buffer = self.buffer.load().to_vec();
+        let buffer = self.buffer.load_full();
         let filters = Filter::from_key(key);
         let mut queue = self.variants.iter().collect::<Vec<_>>();
         for filter in filters {
@@ -517,7 +519,7 @@ impl Font {
         let variant = queue[0];
         let mut face = StaticFaceTryBuilder {
             key: variant.key.clone(),
-            path: self.path.clone().unwrap_or_default(),
+            // path: self.path.clone().unwrap_or_default(),
             buffer,
             face_builder: |buf| Face::parse(buf, variant.index),
         }
@@ -557,42 +559,35 @@ impl Font {
 #[self_referencing]
 pub struct StaticFace {
     key: FontKey,
-    pub(crate) path: PathBuf,
-    pub(crate) buffer: Vec<u8>,
+    pub(crate) buffer: Arc<Vec<u8>>,
     #[borrows(buffer)]
-    #[covariant]
+    #[not_covariant]
     pub(crate) face: Face<'this>,
 }
 
 impl StaticFace {
     pub fn has_glyph(&self, c: char) -> bool {
-        let f = self.borrow_face();
-        f.glyph_index(c).is_some()
+        self.with_face(|f| f.glyph_index(c).is_some())
     }
 
     pub fn ascender(&self) -> i16 {
-        let f = self.borrow_face();
-        f.ascender()
+        self.with_face(|f| f.ascender())
     }
 
     pub fn descender(&self) -> i16 {
-        let f = self.borrow_face();
-        f.descender()
+        self.with_face(|f| f.descender())
     }
 
     pub fn units_per_em(&self) -> u16 {
-        let f = self.borrow_face();
-        f.units_per_em()
+        self.with_face(|f| f.units_per_em())
     }
 
     pub fn strikeout_metrics(&self) -> Option<LineMetrics> {
-        let f = self.borrow_face();
-        f.strikeout_metrics()
+        self.with_face(|f| f.strikeout_metrics())
     }
 
     pub fn underline_metrics(&self) -> Option<LineMetrics> {
-        let f = self.borrow_face();
-        f.underline_metrics()
+        self.with_face(|f| f.underline_metrics())
     }
 
     pub fn key(&self) -> FontKey {

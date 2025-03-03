@@ -1,10 +1,10 @@
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 use crate::bindings::exports::alibaba::fontkit::fontkit_interface as fi;
 use crate::font::FontKey;
 use crate::metrics::TextMetrics;
-use crate::{Font, FontKit, GlyphBitmap, StaticFace, VariationData};
+use crate::{Config, Font, FontKit, GlyphBitmap, StaticFace, VariationData};
 
 use crate::bindings::exports::alibaba::fontkit::fontkit_interface::GuestTextMetrics;
 
@@ -14,11 +14,11 @@ impl fi::GuestFont for StaticFace {
     }
 
     fn buffer(&self) -> Vec<u8> {
-        self.borrow_buffer().clone()
+        self.borrow_buffer().to_vec()
     }
 
     fn path(&self) -> String {
-        self.borrow_path().to_str().unwrap_or_default().to_string()
+        String::new()
     }
 
     fn key(&self) -> fi::FontKey {
@@ -200,8 +200,14 @@ impl fi::GuestFontKit for FontKit {
         Some(font_info(&*font))
     }
 
-    fn set_lru_limit(&self, limit: u32) {
-        self.lru_limit.store(limit, Ordering::SeqCst);
+    fn set_config(&self, limit: u32, cache_path: Option<String>) {
+        if let Some(p) = cache_path.as_ref() {
+            std::fs::create_dir_all(p).unwrap();
+        }
+        self.config.store(Arc::new(Config {
+            lru_limit: limit,
+            cache_path,
+        }));
     }
 
     fn buffer_size(&self) -> u32 {
@@ -269,6 +275,10 @@ impl GuestTextMetrics for TextMetrics {
 
     fn units(&self) -> f32 {
         self.units() as f32
+    }
+
+    fn has_missing(&self) -> bool {
+        self.has_missing()
     }
 }
 

@@ -14,7 +14,6 @@ impl StaticFace {
     /// Measure a string slice. If certain character is missing, the related
     /// [`CharMetrics`] 's `missing` field will be `true`
     pub fn measure(&self, text: &str) -> Result<TextMetrics, Error> {
-        let font = self.borrow_face();
         let mut positions = vec![];
         let mut prev = 0 as char;
         let mut value = Cow::Borrowed(text);
@@ -45,8 +44,7 @@ impl StaticFace {
         } else {
             (value, vec![])
         };
-        let height = font.height();
-        let line_gap = font.line_gap();
+        let (height, line_gap) = self.with_face(|f| (f.height(), f.line_gap()));
         for (char_code, level) in value.nfc().zip(
             levels
                 .into_iter()
@@ -94,60 +92,62 @@ impl StaticFace {
             positions: Arc::new(RwLock::new(positions)),
             line_gap,
             content_height: height,
-            ascender: font.ascender(),
-            units: font.units_per_em(),
+            ascender: self.ascender(),
+            units: self.units_per_em(),
         })
     }
 
     /// Measure the metrics of a single unicode charactor
     pub(crate) fn measure_char(&self, c: char) -> Option<CharMetrics> {
-        let f = self.borrow_face();
-        let height = f.height();
-        let units = f.units_per_em() as f32;
-        let glyph_id = f.glyph_index(c)?;
-        let bbox = f.glyph_bounding_box(glyph_id).or_else(|| {
-            Some(Rect {
-                x_min: 0,
-                y_min: 0,
-                x_max: f.glyph_hor_advance(glyph_id)? as i16,
-                y_max: units as i16,
+        self.with_face(|f| {
+            let height = f.height();
+            let units = f.units_per_em() as f32;
+            let glyph_id = f.glyph_index(c)?;
+            let bbox = f.glyph_bounding_box(glyph_id).or_else(|| {
+                Some(Rect {
+                    x_min: 0,
+                    y_min: 0,
+                    x_max: f.glyph_hor_advance(glyph_id)? as i16,
+                    y_max: units as i16,
+                })
+            })?;
+            let lsb = f.glyph_hor_side_bearing(glyph_id).unwrap_or(0);
+            // ttf-parser added phantom points support, so the original fix is no
+            // longer needed. Check history for details.
+            let advanced_x = f.glyph_hor_advance(glyph_id)?;
+            Some(CharMetrics {
+                c,
+                glyph_id,
+                advanced_x,
+                bbox,
+                lsb,
+                units,
+                height,
+                missing: false,
             })
-        })?;
-        let lsb = f.glyph_hor_side_bearing(glyph_id).unwrap_or(0);
-        // ttf-parser added phantom points support, so the original fix is no
-        // longer needed. Check history for details.
-        let advanced_x = f.glyph_hor_advance(glyph_id)?;
-        Some(CharMetrics {
-            c,
-            glyph_id,
-            advanced_x,
-            bbox,
-            lsb,
-            units,
-            height,
-            missing: false,
         })
     }
 
     /// Check if there's any kerning data between two charactors, units are
     /// handled
     fn kerning(&self, prev: char, c: char) -> Option<i16> {
-        let f = self.borrow_face();
-        let pid = f.glyph_index(prev)?;
-        let cid = f.glyph_index(c)?;
-        let mut kerning = 0;
-        for table in f
-            .tables()
-            .kern
-            .into_iter()
-            .flat_map(|k| k.subtables.into_iter())
-            .filter(|st| st.horizontal && !st.variable)
-        {
-            if let Some(k) = table.glyphs_kerning(pid, cid) {
-                kerning = k;
+        self.with_face(|f| {
+            let pid = f.glyph_index(prev)?;
+            let cid = f.glyph_index(c)?;
+            let mut kerning = 0;
+            for table in f
+                .tables()
+                .kern
+                .into_iter()
+                .flat_map(|k| k.subtables.into_iter())
+                .filter(|st| st.horizontal && !st.variable)
+            {
+                if let Some(k) = table.glyphs_kerning(pid, cid) {
+                    kerning = k;
+                }
             }
-        }
-        Some(kerning)
+            Some(kerning)
+        })
     }
 }
 

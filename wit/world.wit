@@ -41,6 +41,7 @@ interface fontkit-interface {
         is-rtl: func() -> bool;
         append: func(other: text-metrics);
         count: func() -> u32;
+        has-missing: func() -> bool;
         /// replace this metrics with another, allowing fallback logic
         replace: func(other: text-metrics, fallback: bool);
         split-by-width: func(font-size: f32, letter-spacing: f32, width: f32) -> text-metrics;
@@ -82,8 +83,9 @@ interface fontkit-interface {
     /// Stores font buffer and provides font-querying APIs
     resource font-kit {
         constructor();
-        /// add an LRU limit for font buffer registry, `limit`'s unit is KB, 0 means caching is disabled
-        set-lru-limit: func(limit: u32);
+        /// add an LRU limit for font buffer registry, `limit`'s unit is KB, 0 means caching is disabled.
+        /// If a cache path is provided, `addFontFromBuffer` will dump the buffer into the path to save memory
+        set-config: func(limit: u32, cache-path: option<string>);
         /// Register a font (or several fonts in case of ttc), return the keys of added fonts.
         /// The file type is extracted from the buffer by checking magic numbers
         add-font-from-buffer: func(buffer: list<u8>) ;

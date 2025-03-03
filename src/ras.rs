@@ -15,8 +15,6 @@ use crate::*;
 impl StaticFace {
     /// Output the outline instructions of a glyph
     pub fn outline(&self, c: char) -> Option<(Glyph, Outline)> {
-        let mut builder = PathBuilder::new();
-        let f = self.borrow_face();
         let CharMetrics {
             glyph_id,
             bbox,
@@ -24,8 +22,12 @@ impl StaticFace {
             units,
             ..
         } = self.measure_char(c)?;
-        let outline = f.outline_glyph(glyph_id, &mut builder).unwrap_or(bbox);
-        builder.finish();
+        let (builder, outline) = self.with_face(|f| {
+            let mut builder = PathBuilder::new();
+            let outline = f.outline_glyph(glyph_id, &mut builder).unwrap_or(bbox);
+            builder.finish();
+            (builder, outline)
+        });
         let glyph = Glyph {
             units: units as u16,
             path: builder.path,
@@ -41,160 +43,177 @@ impl StaticFace {
         if !self.has_glyph(c) {
             return None;
         }
-        let f = self.borrow_face();
-        let a = f.ascender();
-        let d = f.descender();
-        let units = f.units_per_em() as f32;
-        let factor = font_size / units;
-        let glyph_id = f.glyph_index(c)?;
-        if let Some(bb) = f.glyph_raster_image(glyph_id, 1) {
-            let advanced_x = f.glyph_hor_advance(glyph_id)? as f32 * factor;
-            let width = advanced_x;
-            let height = width * (bb.height as f32 / bb.width as f32);
-            let width_factor = width as f32 / bb.width as f32;
-            let height_factor = height as f32 / bb.height as f32;
+        self.with_face(|f| {
+            let a = f.ascender();
+            let d = f.descender();
+            let units = f.units_per_em() as f32;
+            let factor = font_size / units;
+            let glyph_id = f.glyph_index(c)?;
+            if let Some(bb) = f.glyph_raster_image(glyph_id, 1) {
+                let advanced_x = f.glyph_hor_advance(glyph_id)? as f32 * factor;
+                let width = advanced_x;
+                let height = width * (bb.height as f32 / bb.width as f32);
+                let width_factor = width as f32 / bb.width as f32;
+                let height_factor = height as f32 / bb.height as f32;
 
-            let x = bb.x as f32 * width_factor;
-            let y = bb.y as f32 * height_factor;
+                let x = bb.x as f32 * width_factor;
+                let y = bb.y as f32 * height_factor;
 
-            let bbox = ttf_parser::Rect {
-                x_min: (x / factor) as i16,
-                y_min: (y / factor) as i16,
-                x_max: ((x as f32 + width as f32) / factor) as i16,
-                y_max: ((y as f32 + height as f32) / factor) as i16,
-            };
-            let mut decoder = png::Decoder::new(bb.data);
-            decoder.set_transformations(png::Transformations::normalize_to_color8());
-            decoder.set_ignore_text_chunk(true);
-            let (bitmap, bitmap_width, bitmap_height) = decoder
-                .read_info()
-                .map_err(|e| e.into())
-                .and_then(|mut reader| {
-                    let mut buf = vec![0; reader.output_buffer_size()];
-                    reader.next_frame(&mut buf)?;
-                    let buf: Vec<u8> = match reader.output_color_type().0 {
-                        png::ColorType::Rgb => buf
-                            .chunks(3)
-                            .map(|c| [c[0], c[1], c[2], 255].into_iter())
-                            .flatten()
-                            .collect(),
-                        png::ColorType::Rgba => buf,
-                        png::ColorType::GrayscaleAlpha => buf
-                            .chunks_mut(2)
-                            .map(|c| {
-                                c[0] = ((c[0] as u16 * c[1] as u16) >> 8) as u8;
-                                [c[0], c[0], c[0], c[1]].into_iter()
-                            })
-                            .flatten()
-                            .collect(),
-                        png::ColorType::Grayscale => buf
-                            .chunks_mut(1)
-                            .map(|c| [c[0], c[0], c[0], 255].into_iter())
-                            .flatten()
-                            .collect(),
-                        _ => return Err(Error::PngNotSupported(reader.info().color_type)),
+                let bbox = ttf_parser::Rect {
+                    x_min: (x / factor) as i16,
+                    y_min: (y / factor) as i16,
+                    x_max: ((x as f32 + width as f32) / factor) as i16,
+                    y_max: ((y as f32 + height as f32) / factor) as i16,
+                };
+                let mut decoder = png::Decoder::new(bb.data);
+                decoder.set_transformations(png::Transformations::normalize_to_color8());
+                decoder.set_ignore_text_chunk(true);
+                let (bitmap, bitmap_width, bitmap_height) = decoder
+                    .read_info()
+                    .map_err(|e| e.into())
+                    .and_then(|mut reader| {
+                        let mut buf = vec![0; reader.output_buffer_size()];
+                        reader.next_frame(&mut buf)?;
+                        let buf: Vec<u8> = match reader.output_color_type().0 {
+                            png::ColorType::Rgb => buf
+                                .chunks(3)
+                                .map(|c| [c[0], c[1], c[2], 255].into_iter())
+                                .flatten()
+                                .collect(),
+                            png::ColorType::Rgba => buf,
+                            png::ColorType::GrayscaleAlpha => buf
+                                .chunks_mut(2)
+                                .map(|c| {
+                                    c[0] = ((c[0] as u16 * c[1] as u16) >> 8) as u8;
+                                    [c[0], c[0], c[0], c[1]].into_iter()
+                                })
+                                .flatten()
+                                .collect(),
+                            png::ColorType::Grayscale => buf
+                                .chunks_mut(1)
+                                .map(|c| [c[0], c[0], c[0], 255].into_iter())
+                                .flatten()
+                                .collect(),
+                            _ => return Err(Error::PngNotSupported(reader.info().color_type)),
+                        };
+                        Ok((buf, reader.info().width, reader.info().height))
+                    })
+                    .ok()?;
+                // https://docs.rs/fast_image_resize/latest/fast_image_resize/
+                let result;
+                #[cfg(target_arch = "wasm32")]
+                {
+                    use rgb::FromSlice;
+                    let mut dst = vec![0; width as usize * height as usize * 4];
+                    let mut resizer = resize::new(
+                        bitmap_width as usize,
+                        bitmap_height as usize,
+                        width as usize,
+                        height as usize,
+                        resize::Pixel::RGBA8,
+                        resize::Type::Lanczos3,
+                    )
+                    .unwrap();
+                    let _ = resizer.resize(bitmap.as_rgba(), dst.as_rgba_mut());
+                    result = dst;
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    use fast_image_resize::images::Image;
+                    use fast_image_resize::{
+                        FilterType, MulDiv, PixelType, ResizeAlg, ResizeOptions, Resizer,
                     };
-                    Ok((buf, reader.info().width, reader.info().height))
-                })
-                .ok()?;
-            // https://docs.rs/fast_image_resize/latest/fast_image_resize/
-            let result;
-            #[cfg(target_arch = "wasm32")]
-            {
-                use rgb::FromSlice;
-                let mut dst = vec![0; width as usize * height as usize * 4];
-                let mut resizer = resize::new(
-                    bitmap_width as usize,
-                    bitmap_height as usize,
-                    width as usize,
-                    height as usize,
-                    resize::Pixel::RGBA8,
-                    resize::Type::Lanczos3,
-                )
-                .unwrap();
-                let _ = resizer.resize(bitmap.as_rgba(), dst.as_rgba_mut());
-                result = dst;
-            }
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                use fast_image_resize::{FilterType, Image, MulDiv, PixelType, ResizeAlg, Resizer};
-                use std::num::NonZeroU32;
 
-                let mut image = Image::from_vec_u8(
-                    NonZeroU32::new(bitmap_width).unwrap(),
-                    NonZeroU32::new(bitmap_height).unwrap(),
-                    bitmap,
-                    PixelType::U8x4,
-                )
-                .unwrap();
-                let alpha_mul_div = MulDiv::default();
-                alpha_mul_div
-                    .multiply_alpha_inplace(&mut image.view_mut())
-                    .unwrap();
-                let mut resizer = Resizer::new(ResizeAlg::Convolution(FilterType::Bilinear));
-                let mut dst = Image::new(
-                    NonZeroU32::new(width as u32).unwrap(),
-                    NonZeroU32::new(height as u32).unwrap(),
-                    PixelType::U8x4,
-                );
-                resizer.resize(&image.view(), &mut dst.view_mut()).unwrap();
-                alpha_mul_div
-                    .divide_alpha_inplace(&mut dst.view_mut())
-                    .unwrap();
-                result = dst.into_vec();
-            }
+                    let mut image =
+                        Image::from_vec_u8(bitmap_width, bitmap_height, bitmap, PixelType::U8x4)
+                            .unwrap();
+                    let alpha_mul_div = MulDiv::default();
+                    alpha_mul_div.multiply_alpha_inplace(&mut image).unwrap();
+                    let mut resizer = Resizer::new();
+                    let opts = ResizeOptions::new()
+                        .resize_alg(ResizeAlg::Convolution(FilterType::Bilinear));
+                    let mut dst = Image::new(width as u32, height as u32, PixelType::U8x4);
+                    resizer.resize(&image, &mut dst, &opts).unwrap();
+                    alpha_mul_div.divide_alpha_inplace(&mut dst).unwrap();
+                    result = dst.into_vec();
+                }
 
-            Some(GlyphBitmap(GlyphBitmapVariants::Raster(GlyphRasterImage {
-                width: width as u16,
-                height: height as u16,
-                bbox,
-                factor,
-                ascender: a as f32 * factor,
-                descender: d as f32 * factor,
-                advanced_x,
-                bitmap: result,
-            })))
-        } else {
-            let (glyph, outline) = self.outline(c)?;
-            let advanced_x = glyph.advanced_x as f32 * factor;
-            let mut width = (glyph.bbox.x_max as f32 * factor).ceil()
-                - (glyph.bbox.x_min as f32 * factor).floor();
-            if width == 0.0 {
-                width = advanced_x;
-            }
-            if width == 0.0 {
-                width = font_size;
-            }
-            let mut height = (glyph.bbox.y_max as f32 * factor).ceil()
-                - (glyph.bbox.y_min as f32 * factor).floor();
+                Some(GlyphBitmap(GlyphBitmapVariants::Raster(GlyphRasterImage {
+                    width: width as u16,
+                    height: height as u16,
+                    bbox,
+                    factor,
+                    ascender: a as f32 * factor,
+                    descender: d as f32 * factor,
+                    advanced_x,
+                    bitmap: result,
+                })))
+            } else {
+                let (glyph, outline) = self.outline(c)?;
+                let advanced_x = glyph.advanced_x as f32 * factor;
+                let mut width = (glyph.bbox.x_max as f32 * factor).ceil()
+                    - (glyph.bbox.x_min as f32 * factor).floor();
+                if width == 0.0 {
+                    width = advanced_x;
+                }
+                if width == 0.0 {
+                    width = font_size;
+                }
+                let mut height = (glyph.bbox.y_max as f32 * factor).ceil()
+                    - (glyph.bbox.y_min as f32 * factor).floor();
 
-            let mut stroke_x_min = (glyph.bbox.x_min as f32 * factor).floor();
-            let mut stroke_y_max = (glyph.bbox.y_max as f32 * factor).ceil();
+                let mut stroke_x_min = (glyph.bbox.x_min as f32 * factor).floor();
+                let mut stroke_y_max = (glyph.bbox.y_max as f32 * factor).ceil();
 
-            // try to render stroke
-            let stroke_bitmap = if stroke_width > 0.0 {
-                #[cfg(feature = "optimize_stroke_broken")]
-                let outline = remove_obtuse_angle(&outline);
-                let mut filler = OutlineStrokeToFill::new(
-                    &outline,
-                    StrokeStyle {
-                        line_width: stroke_width / factor,
-                        line_cap: LineCap::default(),
-                        line_join: LineJoin::Miter(4.0),
-                    },
-                );
-                filler.offset();
-                let outline = filler.into_outline();
-                let bounds = outline.bounds();
-                let width = (bounds.max_x() * factor).ceil() - (bounds.min_x() * factor).floor();
-                let height = (bounds.max_y() * factor).ceil() - (bounds.min_y() * factor).floor();
-                stroke_x_min = (bounds.origin_x() * factor).floor();
-                stroke_y_max = ((bounds.size().y() + bounds.origin_y()) * factor).ceil();
+                // try to render stroke
+                let stroke_bitmap = if stroke_width > 0.0 {
+                    #[cfg(feature = "optimize_stroke_broken")]
+                    let outline = remove_obtuse_angle(&outline);
+                    let mut filler = OutlineStrokeToFill::new(
+                        &outline,
+                        StrokeStyle {
+                            line_width: stroke_width / factor,
+                            line_cap: LineCap::default(),
+                            line_join: LineJoin::Miter(4.0),
+                        },
+                    );
+                    filler.offset();
+                    let outline = filler.into_outline();
+                    let bounds = outline.bounds();
+                    let width =
+                        (bounds.max_x() * factor).ceil() - (bounds.min_x() * factor).floor();
+                    let height =
+                        (bounds.max_y() * factor).ceil() - (bounds.min_y() * factor).floor();
+                    stroke_x_min = (bounds.origin_x() * factor).floor();
+                    stroke_y_max = ((bounds.size().y() + bounds.origin_y()) * factor).ceil();
+                    let mut ras = FontkitRas {
+                        ras: Rasterizer::new(width as usize, height as usize),
+                        factor,
+                        x_min: stroke_x_min,
+                        y_max: stroke_y_max,
+                        prev: None,
+                        start: None,
+                    };
+                    ras.load_outline(outline);
+                    let mut bitmap = vec![0_u8; width as usize * height as usize];
+                    ras.ras.for_each_pixel_2d(|x, y, alpha| {
+                        if x < width as u32 && y < height as u32 {
+                            bitmap[((height as u32 - y - 1) * width as u32 + x) as usize] =
+                                (alpha * 255.0) as u8;
+                        }
+                    });
+                    Some((bitmap, width as u32))
+                } else {
+                    None
+                };
+                width = width.ceil();
+                height = height.ceil();
+
                 let mut ras = FontkitRas {
                     ras: Rasterizer::new(width as usize, height as usize),
                     factor,
-                    x_min: stroke_x_min,
-                    y_max: stroke_y_max,
+                    x_min: (glyph.bbox.x_min as f32 * factor).floor(),
+                    y_max: (glyph.bbox.y_max as f32 * factor).ceil(),
                     prev: None,
                     start: None,
                 };
@@ -206,45 +225,25 @@ impl StaticFace {
                             (alpha * 255.0) as u8;
                     }
                 });
-                Some((bitmap, width as u32))
-            } else {
-                None
-            };
-            width = width.ceil();
-            height = height.ceil();
 
-            let mut ras = FontkitRas {
-                ras: Rasterizer::new(width as usize, height as usize),
-                factor,
-                x_min: (glyph.bbox.x_min as f32 * factor).floor(),
-                y_max: (glyph.bbox.y_max as f32 * factor).ceil(),
-                prev: None,
-                start: None,
-            };
-            ras.load_outline(outline);
-            let mut bitmap = vec![0_u8; width as usize * height as usize];
-            ras.ras.for_each_pixel_2d(|x, y, alpha| {
-                if x < width as u32 && y < height as u32 {
-                    bitmap[((height as u32 - y - 1) * width as u32 + x) as usize] =
-                        (alpha * 255.0) as u8;
-                }
-            });
-
-            Some(GlyphBitmap(GlyphBitmapVariants::Outline(
-                GlyphRasterOutline {
-                    width: width as u16,
-                    bbox: glyph.bbox,
-                    factor,
-                    ascender: a as f32 * factor,
-                    descender: d as f32 * factor,
-                    advanced_x,
-                    bitmap,
-                    stroke_bitmap,
-                    stroke_x_correction: (glyph.bbox.x_min as f32 * factor).floor() - stroke_x_min,
-                    stroke_y_correction: stroke_y_max - (glyph.bbox.y_max as f32 * factor).ceil(),
-                },
-            )))
-        }
+                Some(GlyphBitmap(GlyphBitmapVariants::Outline(
+                    GlyphRasterOutline {
+                        width: width as u16,
+                        bbox: glyph.bbox,
+                        factor,
+                        ascender: a as f32 * factor,
+                        descender: d as f32 * factor,
+                        advanced_x,
+                        bitmap,
+                        stroke_bitmap,
+                        stroke_x_correction: (glyph.bbox.x_min as f32 * factor).floor()
+                            - stroke_x_min,
+                        stroke_y_correction: stroke_y_max
+                            - (glyph.bbox.y_max as f32 * factor).ceil(),
+                    },
+                )))
+            }
+        })
     }
 }
 
