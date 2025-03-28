@@ -187,7 +187,19 @@ impl FontKit {
         }
         let cache_path = self.config.load().cache_path.clone();
         if let Some(mut path) = cache_path.and_then(|p| PathBuf::from_str(&p).ok()) {
-            if font.path().is_none() {
+            if let Some(original_path) = font.path() {
+                let relative_path = if original_path.is_absolute()
+                    && !std::fs::exists(original_path.clone()).unwrap_or(false)
+                {
+                    format!(".{}", original_path.display())
+                } else {
+                    format!("{}", original_path.display())
+                };
+                path.push(relative_path);
+                let mut dir = path.clone();
+                dir.pop();
+                std::fs::create_dir_all(dir)?;
+            } else {
                 path.push(format!(
                     "{}_{}_{}_{}.ttf",
                     key.family.replace(['.', ' '], "_"),
@@ -195,10 +207,11 @@ impl FontKit {
                     key.stretch.unwrap_or(5),
                     key.weight.unwrap_or(400)
                 ));
-                let mut f = File::create(&path)?;
-                f.write_all(&buffer)?;
-                font.set_path(path);
             }
+            let mut f = File::create(&path)?;
+            f.write_all(&buffer)?;
+            font.set_path(path);
+            font.unload();
         }
         self.fonts.insert(key, font);
         self.check_lru();
