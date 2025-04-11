@@ -470,19 +470,19 @@ impl TextMetrics {
             }
             naive_break_index -= 1;
         }
-        if rtl {
-            naive_break_index = total_count - naive_break_index;
-            self.positions.write().unwrap().reverse();
-        }
 
         // NOTE: str.nfc() & textwrap all handles RTL text well, so we do
         // not take extra effort here
         let positions = self.positions.read().unwrap();
-        let display_str = positions
+        let positions_rev = positions
             .iter()
             .take(naive_break_index)
-            .map(|c| c.metrics.c)
-            .collect::<String>();
+            .map(|c| c.metrics.c);
+        let display_str = if rtl {
+            positions_rev.rev().collect::<String>()
+        } else {
+            positions_rev.collect::<String>()
+        };
         let display_width = textwrap::core::display_width(&display_str);
         let options = Options::new(display_width)
             .wrap_algorithm(textwrap::WrapAlgorithm::FirstFit)
