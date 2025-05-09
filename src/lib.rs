@@ -40,8 +40,7 @@ struct Config {
 
 pub struct FontKit {
     fonts: dashmap::DashMap<font::FontKey, Font>,
-    fallback_font_key: Option<Box<dyn Fn(font::FontKey) -> font::FontKey + Send + Sync>>,
-    emoji_font_key: Option<font::FontKey>,
+    fallback_font_key: Box<dyn Fn(font::FontKey) -> Option<font::FontKey> + Send + Sync>,
     pub(crate) config: ArcSwap<Config>,
     hit_counter: Arc<AtomicU32>,
 }
@@ -51,8 +50,7 @@ impl FontKit {
     pub fn new() -> Self {
         FontKit {
             fonts: dashmap::DashMap::new(),
-            fallback_font_key: None,
-            emoji_font_key: None,
+            fallback_font_key: Box::new(|_| None),
             config: ArcSwap::new(Arc::new(Config {
                 lru_limit: 0,
                 cache_path: None,
@@ -69,55 +67,52 @@ impl FontKit {
     /// fallback to measure, if possible
     pub fn set_fallback(
         &mut self,
-        font_key: Option<impl Fn(font::FontKey) -> font::FontKey + Send + Sync + 'static>,
+        callback: impl Fn(font::FontKey) -> Option<font::FontKey> + Send + Sync + 'static,
     ) {
-        self.fallback_font_key = font_key.map(|f| Box::new(f) as _);
-    }
-
-    pub fn set_emoji(&mut self, font_key: font::FontKey) {
-        self.emoji_font_key = Some(font_key)
+        self.fallback_font_key = Box::new(callback);
     }
 
     #[cfg(feature = "metrics")]
     pub fn measure(&self, font_key: &font::FontKey, text: &str) -> Option<metrics::TextMetrics> {
-        match self
-            .query(&font_key)
-            .and_then(|font| font.measure(text).ok())
-        {
-            Some(metrics) => {
-                let has_missing = metrics.has_missing();
-                let fallback_fontkey = self.fallback_font_key.as_ref().and_then(|key| {
-                    let key = (key)(font_key.clone());
-                    let font = self.query(&key)?;
-                    Some(font.key().clone())
-                });
-                if has_missing {
-                    if let Some(font) = fallback_fontkey.as_ref().and_then(|key| self.query(key)) {
-                        if let Ok(new_metrics) = font.measure(text) {
-                            metrics.replace(new_metrics, true);
-                        }
+        let mut used_keys = HashSet::new();
+        let mut current_key = font_key.clone();
+        let mut current_metrics: Option<metrics::TextMetrics> = None;
+        used_keys.insert(current_key.clone());
+        loop {
+            match self
+                .query(&current_key)
+                .and_then(|font| font.measure(text).ok())
+            {
+                Some(metrics) => {
+                    if let Some(m) = current_metrics.as_ref() {
+                        m.replace(metrics, true);
+                    } else {
+                        current_metrics = Some(metrics);
                     }
                 }
-                // if after fallback font, still has missing, then detect emoji font
-                let has_missing = metrics.has_missing();
-                if has_missing {
-                    if let Some(font) = self.emoji_font_key.as_ref().and_then(|key| self.query(key))
-                    {
-                        if let Ok(new_metrics) = font.measure(text) {
-                            metrics.replace(new_metrics, true);
-                        }
-                    }
-                }
-                Some(metrics)
+                None => {}
             }
-            None => {
-                let font = self
-                    .fallback_font_key
-                    .as_ref()
-                    .and_then(|key| self.query(&(key)(font_key.clone())))?;
-                font.measure(text).ok()
+            if !current_metrics
+                .as_ref()
+                .map(|m| m.has_missing())
+                .unwrap_or(true)
+            {
+                break;
+            }
+            let callback = self.fallback_font_key.as_ref();
+            match (callback)(current_key) {
+                Some(next_key) => {
+                    if used_keys.contains(&next_key) {
+                        break;
+                    } else {
+                        used_keys.insert(next_key.clone());
+                        current_key = next_key;
+                    }
+                }
+                None => break,
             }
         }
+        current_metrics
     }
 
     pub fn remove(&self, key: font::FontKey) {
