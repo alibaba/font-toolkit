@@ -23,46 +23,53 @@ impl StaticFace {
         }
         let bidi = BidiInfo::new(&value, None);
         let (value, levels) = if bidi.has_rtl() {
-            let value = bidi
+            let prev = value.clone();
+            let (strs, data): (Vec<String>, Vec<_>) = bidi
                 .paragraphs
                 .iter()
                 .map(|para| {
+                    let (levels, runs) = bidi.visual_runs(para, para.range.clone());
                     let line = para.range.clone();
-                    bidi.reorder_line(para, line)
+
+                    if runs.iter().all(|run| levels[run.start].is_ltr()) {
+                        let result: String = prev[line.clone()].into();
+                        let info = prev[line]
+                            .chars()
+                            .map(|c| (c, Level::ltr()))
+                            .collect::<Vec<_>>();
+                        return (result, info);
+                    }
+
+                    let mut result = String::with_capacity(line.len());
+                    let mut info = vec![];
+                    for run in runs {
+                        if levels[run.start].is_rtl() {
+                            result.extend(prev[run.clone()].chars().rev());
+                            info.extend(prev[run].chars().rev().map(|c| (c, Level::rtl())));
+                        } else {
+                            result.push_str(&prev[run.clone()]);
+                            info.extend(prev[run].chars().rev().map(|c| (c, Level::ltr())));
+                        }
+                    }
+                    (result, info)
                 })
-                .collect::<Vec<_>>()
-                .join("");
-            let levels = bidi
-                .paragraphs
-                .iter()
-                .flat_map(|para| {
-                    let line = para.range.clone();
-                    bidi.reordered_levels(para, line).into_iter()
-                })
+                .unzip();
+            let value = strs.join("");
+            let levels = data
+                .into_iter()
+                .flatten()
+                .map(|(_, levels)| levels)
                 .collect::<Vec<_>>();
             (Cow::Owned(value), levels)
         } else {
-            (value, vec![])
+            let levels = value.nfc().map(|_| Level::ltr()).collect();
+            (value, levels)
         };
         let (height, line_gap) = self.with_face(|f| (f.height(), f.line_gap()));
-        for (char_code, level) in value.nfc().zip(
-            levels
-                .into_iter()
-                .map(|l| Some(l))
-                .chain(std::iter::repeat(None)),
-        ) {
+        for (char_code, level) in value.nfc().zip(levels.into_iter()) {
             if char_code == '\n' {
                 continue;
             }
-            // let direction = if let Some(level) = levels.get(index) {
-            //     if level.is_ltr() {
-            //         TextDirection::LTR
-            //     } else {
-            //         TextDirection::RTL
-            //     }
-            // } else {
-            //     text.direction
-            // };
             let m = self.measure_char(char_code).unwrap_or_else(|| CharMetrics {
                 bbox: Rect {
                     x_min: 0,
@@ -183,7 +190,7 @@ impl TextMetrics {
                     missing: true,
                 },
                 kerning: 0,
-                level: None,
+                level: Level::ltr(),
             })
             .collect::<Vec<_>>();
         m.positions = Arc::new(RwLock::new(data));
@@ -204,10 +211,7 @@ impl TextMetrics {
     pub(crate) fn is_rtl(&self) -> bool {
         self.positions
             .read()
-            .map(|p| {
-                p.iter()
-                    .all(|p| p.level.map(|l| l.is_rtl()).unwrap_or_default())
-            })
+            .map(|p| p.iter().any(|p| p.level.is_rtl()))
             .unwrap_or(false)
     }
 
@@ -319,11 +323,37 @@ impl TextMetrics {
     pub fn value(&self) -> String {
         let rtl = self.is_rtl();
         let positions = self.positions.read().unwrap();
-        let iter = positions.iter().map(|p| p.metrics.c);
         if rtl {
-            iter.rev().collect::<String>()
+            let mut result = String::new();
+            let mut current_chars = vec![];
+            let mut current_level = Level::rtl();
+            for p in positions.iter().rev() {
+                if current_level == p.level {
+                    current_chars.push(p.metrics.c);
+                    continue;
+                }
+                if !current_chars.is_empty() {
+                    if current_level.is_rtl() {
+                        result.extend(current_chars.clone().into_iter());
+                    } else {
+                        result.extend(current_chars.clone().into_iter().rev());
+                    }
+                    current_chars.clear();
+                }
+                current_chars.push(p.metrics.c);
+                current_level = p.level;
+            }
+            if !current_chars.is_empty() {
+                if current_level.is_rtl() {
+                    result.extend(current_chars.clone().into_iter());
+                } else {
+                    result.extend(current_chars.clone().into_iter().rev());
+                }
+                current_chars.clear();
+            }
+            result
         } else {
-            iter.collect::<String>()
+            positions.iter().map(|p| p.metrics.c).collect::<String>()
         }
     }
 }
@@ -334,7 +364,7 @@ pub struct PositionedChar {
     pub metrics: CharMetrics,
     /// Kerning between previous and current character
     pub kerning: i32,
-    pub(crate) level: Option<Level>,
+    pub(crate) level: Level,
 }
 
 /// Metrics for a single unicode charactor in a certain font
