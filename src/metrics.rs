@@ -17,8 +17,11 @@ impl StaticFace {
         let mut positions = vec![];
         let mut prev = 0 as char;
         let mut value = Cow::Borrowed(text);
-        let scripts = ScriptExtension::for_str(&*value);
-        if scripts.contains_script(Script::Arabic) {
+        let is_contain_arabic = value.chars().any(|c| {
+            let script: ScriptExtension = c.into();
+            script.contains_script(Script::Arabic)
+        });
+        if is_contain_arabic {
             value = Cow::Owned(arabic::fix_arabic_ligatures_char(&*value));
         }
         let bidi = BidiInfo::new(&value, None);
