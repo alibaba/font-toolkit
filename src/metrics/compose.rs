@@ -231,7 +231,7 @@ where
                     span.letter_spacing,
                     width - current_line_width,
                 );
-                if new_metrics.count() != 0 {
+                if span.metrics.count() != 0 {
                     failed_with_no_acception = false;
                 }
                 let mut new_span = span.clone();
